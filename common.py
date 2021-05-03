@@ -4,7 +4,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from tensorflow import keras
 
-confidence_threshold = 0.015
+confidence_threshold = 0.02
 results_to_description_dict = {0: 'Wygrana gospodarzy', 1: 'Remis', 2: 'Wygrana gości', 3: 'Brak zakładu'}
 
 
@@ -23,8 +23,8 @@ def plot_metric(history, metric):
         concated_metrics = concated_metrics[concated_metrics < 30]
         avg = np.average(concated_metrics)
         std_dev = math.sqrt(np.sum(concated_metrics * concated_metrics) / len(concated_metrics) - avg ** 2)
-        start = avg - 1.25 * std_dev
-        end = avg + 1.25 * std_dev
+        start = avg - 2 * std_dev
+        end = avg + 2 * std_dev
         plt.ylim([start, end])
     plt.show()
 
