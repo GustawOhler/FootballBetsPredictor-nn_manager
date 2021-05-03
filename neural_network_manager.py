@@ -13,26 +13,6 @@ import numpy as np
 from nn_manager.common import plot_metric, eval_model_after_learning
 from nn_manager.metrics import only_best_prob_odds_profit, odds_loss, how_many_no_bets
 
-
-class Categories(Enum):
-    HOME_WIN = 0
-    TIE = 1
-    AWAY_WIN = 2
-    NO_BET = 3
-
-
-class WeightChangeMonitor(keras.callbacks.Callback):
-    def on_epoch_begin(self, epoch, logs=None):
-        self.start_weights = list(self.model.layers[1].get_weights())
-
-    def on_epoch_end(self, epoch, logs=None):
-        if self.start_weights is not None and len(self.start_weights) > 0:
-            end_weights = self.model.layers[1].get_weights()
-            bias_change = np.mean(np.abs(end_weights[1] - self.start_weights[1]))
-            weight_change = np.mean(np.abs(end_weights[0] - self.start_weights[0]))
-            print("Bias change of first layer: " + str(bias_change) + " weight change of first layer: " + str(weight_change))
-
-
 saved_model_location = "./NN_full_model/"
 saved_weights_location = "./NN_model_weights/checkpoint_weights"
 
