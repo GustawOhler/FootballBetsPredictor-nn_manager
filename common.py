@@ -1,3 +1,4 @@
+import math
 from enum import Enum
 import numpy as np
 from matplotlib import pyplot as plt
@@ -18,14 +19,13 @@ def plot_metric(history, metric):
     plt.ylabel(metric)
     plt.legend(["train_" + metric, 'val_' + metric])
     if metric == 'loss':
-        # concated_metrics = np.concatenate((np.asarray(train_metrics), np.asarray(val_metrics)))
-        # concated_metrics = concated_metrics[concated_metrics < 30]
-        # avg = np.average(concated_metrics)
-        # std_dev = math.sqrt(np.sum(concated_metrics * concated_metrics) / len(concated_metrics) - avg ** 2)
-        # start = avg - 1.25 * std_dev
-        # end = avg + 1.25 * std_dev
-        # plt.ylim([start, end])
-        plt.ylim([0.5, 2])
+        concated_metrics = np.concatenate((np.asarray(train_metrics), np.asarray(val_metrics)))
+        concated_metrics = concated_metrics[concated_metrics < 30]
+        avg = np.average(concated_metrics)
+        std_dev = math.sqrt(np.sum(concated_metrics * concated_metrics) / len(concated_metrics) - avg ** 2)
+        start = avg - 1.25 * std_dev
+        end = avg + 1.25 * std_dev
+        plt.ylim([start, end])
     plt.show()
 
 
@@ -116,6 +116,13 @@ class WeightChangeMonitor(keras.callbacks.Callback):
 
 
 def eval_model_after_learning(y_true, y_pred, odds):
+    y_pred_classes = y_pred.argmax(axis=-1)
+    y_true_classes = y_true.argmax(axis=-1)
+    show_winnings(y_pred_classes, y_true_classes, odds)
+    show_accuracy_for_classes(y_pred_classes, y_true_classes)
+
+
+def eval_model_after_learning_within_threshold(y_true, y_pred, odds):
     y_pred_classes = y_pred.argmax(axis=-1)
     y_true_classes = y_true.argmax(axis=-1)
     show_winnings_within_threshold(y_pred, y_true_classes, odds)

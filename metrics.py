@@ -29,6 +29,26 @@ def only_best_prob_odds_profit(y_true, y_pred):
     odds_b = y_true[:, 6:7]
     gain_loss_vector = tf.concat([win_home_team * (odds_a - 1) + (1 - win_home_team) * -1,
                                   draw * (odds_draw - 1) + (1 - draw) * -1,
+                                  win_away * (odds_b - 1) + (1 - win_away) * -1,
+                                  tf.zeros_like(odds_a)], axis=1)
+    zerod_prediction = tf.where(
+        tf.not_equal(tf.reduce_max(y_pred, axis=1, keepdims=True), y_pred),
+        tf.zeros_like(y_pred),
+        tf.ones_like(y_pred)
+    )
+    return tf.reduce_mean(tf.reduce_sum(gain_loss_vector * zerod_prediction, axis=1))
+
+
+def only_best_prob_odds_profit_within_threshold(y_true, y_pred):
+    win_home_team = y_true[:, 0:1]
+    draw = y_true[:, 1:2]
+    win_away = y_true[:, 2:3]
+    no_bet = y_true[:, 3:4]
+    odds_a = y_true[:, 4:5]
+    odds_draw = y_true[:, 5:6]
+    odds_b = y_true[:, 6:7]
+    gain_loss_vector = tf.concat([win_home_team * (odds_a - 1) + (1 - win_home_team) * -1,
+                                  draw * (odds_draw - 1) + (1 - draw) * -1,
                                   win_away * (odds_b - 1) + (1 - win_away) * -1
                                   # tf.zeros_like(odds_a)
                                   ], axis=1)
