@@ -9,9 +9,7 @@ from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.python.keras.callbacks_v1 import TensorBoard
 from tensorflow.python.keras.regularizers import l2
 import matplotlib.pyplot as plt
-from dataset_manager.dataset_creator import split_dataset
 import numpy as np
-import math
 
 
 class Categories(Enum):
