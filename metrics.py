@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow import keras
 
-from nn_manager.neural_network_manager import confidence_threshold
+from nn_manager.common import confidence_threshold
 
 
 def odds_loss(y_true, y_pred):

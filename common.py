@@ -1,10 +1,10 @@
 from enum import Enum
-
 import numpy as np
 from matplotlib import pyplot as plt
 from tensorflow import keras
 
-from nn_manager.neural_network_manager import confidence_threshold, results_to_description_dict
+confidence_threshold = 0.015
+results_to_description_dict = {0: 'Wygrana gospodarzy', 1: 'Remis', 2: 'Wygrana gości', 3: 'Brak zakładu'}
 
 
 def plot_metric(history, metric):

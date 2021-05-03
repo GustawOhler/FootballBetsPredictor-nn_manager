@@ -8,10 +8,9 @@ from tensorflow.python.keras.regularizers import l2
 from nn_manager.common import plot_metric, eval_model_after_learning
 from nn_manager.metrics import only_best_prob_odds_profit, categorical_crossentropy_with_bets, categorical_acc_with_bets
 
-results_to_description_dict = {0: 'Wygrana gospodarzy', 1: 'Remis', 2: 'Wygrana gości', 3: 'Brak zakładu'}
+
 saved_model_location = "./nn_manager/NN_full_model/"
 saved_weights_location = "./nn_manager/NN_model_weights/checkpoint_weights"
-confidence_threshold = 0.015
 
 
 def create_NN_model(x_train):
