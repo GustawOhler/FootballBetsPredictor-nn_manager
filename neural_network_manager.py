@@ -1,11 +1,11 @@
-# import os
-# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.python.keras.regularizers import l2
 
-from nn_manager.common import plot_metric, eval_model_after_learning_within_threshold
+from nn_manager.common import plot_metric, eval_model_after_learning_within_threshold, confidence_threshold
 from nn_manager.metrics import categorical_crossentropy_with_bets, categorical_acc_with_bets, only_best_prob_odds_profit_within_threshold
 
 saved_model_location = "./nn_manager/NN_full_model/"
@@ -62,7 +62,7 @@ def create_NN_model(x_train):
     model.add(keras.layers.Dense(3, activation='softmax', kernel_initializer=tf.keras.initializers.he_normal()))
     model.compile(loss=categorical_crossentropy_with_bets,
                   optimizer=keras.optimizers.Adam(learning_rate=0.0015),
-                  metrics=[categorical_acc_with_bets, only_best_prob_odds_profit_within_threshold])
+                  metrics=[categorical_acc_with_bets, only_best_prob_odds_profit_within_threshold(confidence_threshold)])
     # only_best_prob_odds_profit
     return model
 
@@ -82,10 +82,10 @@ def perform_nn_learning(model, train_set, val_set):
     y_val = val_set[1]
 
     # tf.compat.v1.disable_eager_execution()
-    history = model.fit(x_train, y_train, epochs=350, batch_size=128, verbose=1, shuffle=False, validation_data=val_set[0:2],
-                        callbacks=[EarlyStopping(patience=60, min_delta=0.0001, monitor='val_only_best_prob_odds_profit', mode='max', verbose=1),
+    history = model.fit(x_train, y_train, epochs=10, batch_size=128, verbose=1, shuffle=False, validation_data=val_set[0:2],
+                        callbacks=[EarlyStopping(patience=60, min_delta=0.0001, monitor='val_profit', mode='max', verbose=1),
                                    ModelCheckpoint(saved_weights_location, save_best_only=True, save_weights_only=True,
-                                                   monitor='val_only_best_prob_odds_profit',
+                                                   monitor='val_profit',
                                                    mode='max', verbose=1)]
                         # TensorBoard(write_grads=True, histogram_freq=1, log_dir='.\\tf_logs', write_images=True, write_graph=True)]
                         )
@@ -98,7 +98,7 @@ def perform_nn_learning(model, train_set, val_set):
     eval_model_after_learning_within_threshold(y_val[:, 0:3], model.predict(x_val), y_val[:, 4:7])
 
     plot_metric(history, 'loss')
-    plot_metric(history, 'only_best_prob_odds_profit')
+    plot_metric(history, 'profit')
     plot_metric(history, 'categorical_acc_with_bets')
     save_model(model)
     return model
