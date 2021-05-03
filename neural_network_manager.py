@@ -5,9 +5,8 @@ from tensorflow import keras
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.python.keras.regularizers import l2
 
-from nn_manager.common import plot_metric, eval_model_after_learning
-from nn_manager.metrics import only_best_prob_odds_profit, categorical_crossentropy_with_bets, categorical_acc_with_bets
-
+from nn_manager.common import plot_metric, eval_model_after_learning_within_threshold
+from nn_manager.metrics import categorical_crossentropy_with_bets, categorical_acc_with_bets, only_best_prob_odds_profit_within_threshold
 
 saved_model_location = "./nn_manager/NN_full_model/"
 saved_weights_location = "./nn_manager/NN_model_weights/checkpoint_weights"
@@ -63,7 +62,7 @@ def create_NN_model(x_train):
     model.add(keras.layers.Dense(3, activation='softmax', kernel_initializer=tf.keras.initializers.he_normal()))
     model.compile(loss=categorical_crossentropy_with_bets,
                   optimizer=keras.optimizers.Adam(learning_rate=0.0015),
-                  metrics=[categorical_acc_with_bets, only_best_prob_odds_profit])
+                  metrics=[categorical_acc_with_bets, only_best_prob_odds_profit_within_threshold])
     # only_best_prob_odds_profit
     return model
 
@@ -94,9 +93,9 @@ def perform_nn_learning(model, train_set, val_set):
     model.load_weights(saved_weights_location)
 
     print("Treningowy zbior: ")
-    eval_model_after_learning(y_train[:, 0:3], model.predict(x_train), y_train[:, 4:7])
+    eval_model_after_learning_within_threshold(y_train[:, 0:3], model.predict(x_train), y_train[:, 4:7])
     print("Walidacyjny zbior: ")
-    eval_model_after_learning(y_val[:, 0:3], model.predict(x_val), y_val[:, 4:7])
+    eval_model_after_learning_within_threshold(y_val[:, 0:3], model.predict(x_val), y_val[:, 4:7])
 
     plot_metric(history, 'loss')
     plot_metric(history, 'only_best_prob_odds_profit')
