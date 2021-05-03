@@ -74,7 +74,7 @@ def create_NN_model(x_train):
     opt = keras.optimizers.Adam(learning_rate=0.0001)
     model.compile(loss=odds_loss,
                   optimizer=opt,
-                  metrics=[how_many_no_bets, only_best_prob_odds_profit])
+                  metrics=[how_many_no_bets, only_best_prob_odds_profit()])
     return model
 
 
@@ -94,8 +94,8 @@ def perform_nn_learning(model, train_set, val_set):
 
     # tf.compat.v1.disable_eager_execution()
     history = model.fit(x_train, y_train, epochs=5, batch_size=128, verbose=1, shuffle=False, validation_data=val_set[0:2],
-                        callbacks=[EarlyStopping(patience=30, monitor='val_only_best_prob_odds_profit', mode='max', verbose=1),
-                                   ModelCheckpoint(saved_weights_location, save_best_only=True, save_weights_only=True, monitor='val_only_best_prob_odds_profit',
+                        callbacks=[EarlyStopping(patience=30, monitor='val_profit', mode='max', verbose=1),
+                                   ModelCheckpoint(saved_weights_location, save_best_only=True, save_weights_only=True, monitor='val_profit',
                                                    mode='max', verbose=1)]
                         # callbacks=[TensorBoard(write_grads=True, histogram_freq=1, log_dir='.\\tf_logs', write_graph=True)]
                         # callbacks=[WeightChangeMonitor()]
@@ -110,6 +110,6 @@ def perform_nn_learning(model, train_set, val_set):
     eval_model_after_learning(y_val[:, 0:4], model.predict(x_val), y_val[:, 4:7])
 
     plot_metric(history, 'loss')
-    plot_metric(history, 'only_best_prob_odds_profit')
+    plot_metric(history, 'profit')
     save_model(model)
     return model
