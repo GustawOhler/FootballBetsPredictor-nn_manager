@@ -19,13 +19,16 @@ def plot_metric(history, metric):
     plt.ylabel(metric)
     plt.legend(["train_" + metric, 'val_' + metric])
     if metric == 'loss':
-        concated_metrics = np.concatenate((np.asarray(train_metrics), np.asarray(val_metrics)))
-        concated_metrics = concated_metrics[concated_metrics < 30]
-        avg = np.average(concated_metrics)
-        std_dev = math.sqrt(np.sum(concated_metrics * concated_metrics) / len(concated_metrics) - avg ** 2)
-        start = avg - 1.25 * std_dev
-        end = avg + 1.25 * std_dev
-        plt.ylim([start, end])
+        # concated_metrics = np.concatenate((np.asarray(train_metrics), np.asarray(val_metrics)))
+        # concated_metrics = concated_metrics[concated_metrics < 30]
+        # avg = np.average(concated_metrics)
+        # std_dev = math.sqrt(np.sum(concated_metrics * concated_metrics) / len(concated_metrics) - avg ** 2)
+        # start = avg - 1.25 * std_dev
+        # end = avg + 1.25 * std_dev
+        # plt.ylim([start, end])
+        plt.ylim([-1, 0.75])
+    if metric == 'profit':
+        plt.axhline(y=0, color='r')
     plt.show()
 
 
