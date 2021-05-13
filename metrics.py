@@ -14,7 +14,7 @@ def odds_loss(y_true, y_pred):
                                   draw * (odds_draw - 1) + (1 - draw) * -1,
                                   win_away * (odds_b - 1) + (1 - win_away) * -1,
                                   tf.zeros_like(odds_a)], axis=1)
-    return -1 * tf.reduce_mean(tf.reduce_sum(gain_loss_vector * y_pred, axis=1))
+    return -1.0 * tf.reduce_mean(tf.reduce_sum(gain_loss_vector * y_pred, axis=1))
 
 
 def only_best_prob_odds_profit():

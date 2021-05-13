@@ -1,11 +1,11 @@
-import math
 from enum import Enum
 import numpy as np
 from matplotlib import pyplot as plt
 from tensorflow import keras
+import pandas as pd
 
-confidence_threshold = 0.015
-results_to_description_dict = {0: 'Wygrana gospodarzy', 1: 'Remis', 2: 'Wygrana gości', 3: 'Brak zakładu'}
+from constants import confidence_threshold, results_to_description_dict
+from dataset_manager.common_funtions import get_curr_dataset_column_names
 
 
 def plot_metric(history, metric):
@@ -19,13 +19,16 @@ def plot_metric(history, metric):
     plt.ylabel(metric)
     plt.legend(["train_" + metric, 'val_' + metric])
     if metric == 'loss':
-        concated_metrics = np.concatenate((np.asarray(train_metrics), np.asarray(val_metrics)))
-        concated_metrics = concated_metrics[concated_metrics < 30]
-        avg = np.average(concated_metrics)
-        std_dev = math.sqrt(np.sum(concated_metrics * concated_metrics) / len(concated_metrics) - avg ** 2)
-        start = avg - 1.25 * std_dev
-        end = avg + 1.25 * std_dev
-        plt.ylim([start, end])
+        # concated_metrics = np.concatenate((np.asarray(train_metrics), np.asarray(val_metrics)))
+        # concated_metrics = concated_metrics[concated_metrics < 30]
+        # avg = np.average(concated_metrics)
+        # std_dev = math.sqrt(np.sum(concated_metrics * concated_metrics) / len(concated_metrics) - avg ** 2)
+        # start = avg - 1.25 * std_dev
+        # end = avg + 1.25 * std_dev
+        # plt.ylim([start, end])
+        plt.ylim([-1, 0.75])
+    if metric == 'profit':
+        plt.axhline(y=0, color='r')
     plt.show()
 
 
@@ -40,7 +43,8 @@ def show_winnings(predicted_classes, actual_classes, odds):
             winnings = winnings + odds[i][actual_classes[i]] - 1.0
         else:
             winnings = winnings - 1.0
-    print("Bilans wygranych/strat z potencjalnych zakładów: " + str(winnings))
+    print("Bilans wygranych/strat z potencjalnych zakładów: " + str("{:.2f}".format(winnings)) + " na " + str(len(predicted_classes)) + " meczow (" +
+          str("{:.2f}%)".format(winnings/len(predicted_classes)*100)))
 
 
 def show_winnings_within_threshold(classes_possibilities, actual_classes, odds):
@@ -127,3 +131,8 @@ def eval_model_after_learning_within_threshold(y_true, y_pred, odds):
     y_true_classes = y_true.argmax(axis=-1)
     show_winnings_within_threshold(y_pred, y_true_classes, odds)
     show_accuracy_within_threshold(y_pred, y_true_classes, odds)
+
+
+#TODO: make it work!
+def get_debug_infos(x_train, y_pred, y_true):
+    return {'attr': pd.DataFrame(data=x_train, columns=get_curr_dataset_column_names()), 'predictions': y_pred, 'true_labels': y_true}
