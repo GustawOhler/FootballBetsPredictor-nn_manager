@@ -3,85 +3,86 @@
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
-from tensorflow.python.keras.regularizers import l2
-
-from nn_manager.common import plot_metric, eval_model_after_learning_within_threshold, confidence_threshold
-from nn_manager.metrics import categorical_crossentropy_with_bets, categorical_acc_with_bets, only_best_prob_odds_profit_within_threshold
-
-saved_model_location = "./nn_manager/NN_full_model/"
-saved_weights_location = "./nn_manager/NN_model_weights/checkpoint_weights"
+from constants import saved_model_location, saved_weights_location, confidence_threshold
+from nn_manager.common import plot_metric, eval_model_after_learning, eval_model_after_learning_within_threshold
+from nn_manager.metrics import only_best_prob_odds_profit, odds_loss, how_many_no_bets, categorical_crossentropy_with_bets, categorical_acc_with_bets, \
+    only_best_prob_odds_profit_within_threshold
 
 
 def create_NN_model(x_train):
-    factor = 0.000003
-    rate = 0.55
+    factor = 0.0003
+    rate = 0.5
 
     # tf.compat.v1.disable_eager_execution()
     model = tf.keras.models.Sequential()
     model.add(keras.layers.BatchNormalization())
-    model.add(keras.layers.Dense(4048, activation='relu',
-                                 activity_regularizer=l2(factor/2),
-                                 kernel_regularizer=l2(factor),
-                                 kernel_initializer=tf.keras.initializers.he_normal()))
-    model.add(keras.layers.BatchNormalization())
-    model.add(keras.layers.Dropout(rate))
-    model.add(keras.layers.Dense(4048, activation='relu',
-                                 activity_regularizer=l2(factor / 2),
-                                 kernel_regularizer=l2(factor),
-                                 kernel_initializer=tf.keras.initializers.he_normal()))
-    model.add(keras.layers.BatchNormalization())
-    model.add(keras.layers.Dropout(rate))
-    model.add(keras.layers.Dense(1024, activation='relu',
-                                 activity_regularizer=l2(factor/2),
-                                 kernel_regularizer=l2(factor),
+    model.add(keras.layers.Dense(4096, activation='relu',
+                                 # activity_regularizer=l2(factor),
+                                 # kernel_regularizer=l2(factor),
                                  kernel_initializer=tf.keras.initializers.he_normal()))
     model.add(keras.layers.BatchNormalization())
     model.add(keras.layers.Dropout(rate))
     model.add(keras.layers.Dense(512, activation='relu',
-                                 # activity_regularizer=l2(factor/4),
-                                 kernel_regularizer=l2(factor),
+                                 # activity_regularizer=l2(factor / 2),
+                                 # kernel_regularizer=l2(factor),
                                  kernel_initializer=tf.keras.initializers.he_normal()))
     model.add(keras.layers.BatchNormalization())
     model.add(keras.layers.Dropout(rate))
     model.add(keras.layers.Dense(512, activation='relu',
-                                 # activity_regularizer=l2(factor/4),
-                                 kernel_regularizer=l2(factor),
+                                 # activity_regularizer=l2(factor / 2),
+                                 # kernel_regularizer=l2(factor),
                                  kernel_initializer=tf.keras.initializers.he_normal()))
     model.add(keras.layers.BatchNormalization())
     model.add(keras.layers.Dropout(rate))
     model.add(keras.layers.Dense(256, activation='relu',
-                                 # activity_regularizer=l2(factor/4),
-                                 kernel_regularizer=l2(factor),
+                                 # activity_regularizer=l2(factor / 2),
+                                 # kernel_regularizer=l2(factor),
                                  kernel_initializer=tf.keras.initializers.he_normal()))
     model.add(keras.layers.BatchNormalization())
     model.add(keras.layers.Dropout(rate))
     model.add(keras.layers.Dense(256, activation='relu',
-                                 # activity_regularizer=l2(factor/4),
-                                 kernel_regularizer=l2(factor),
+                                 # activity_regularizer=l2(factor / 2),
+                                 # kernel_regularizer=l2(factor),
+                                 kernel_initializer=tf.keras.initializers.he_normal()))
+    model.add(keras.layers.BatchNormalization())
+    model.add(keras.layers.Dropout(rate))
+    model.add(keras.layers.Dense(128, activation='relu',
+                                 # activity_regularizer=l2(factor / 2),
+                                 # kernel_regularizer=l2(factor/100),
+                                 kernel_initializer=tf.keras.initializers.he_normal()))
+    model.add(keras.layers.BatchNormalization())
+    model.add(keras.layers.Dropout(rate))
+    model.add(keras.layers.Dense(128, activation='relu',
+                                 # activity_regularizer=l2(factor / 2),
+                                 # kernel_regularizer=l2(factor/100),
                                  kernel_initializer=tf.keras.initializers.he_normal()))
     model.add(keras.layers.BatchNormalization())
     model.add(keras.layers.Dropout(rate))
     model.add(keras.layers.Dense(64, activation='relu',
-                                 # activity_regularizer=l2(factor / 10),
-                                 kernel_regularizer=l2(factor),
+                                 # activity_regularizer=l2(factor / 2),
+                                 # kernel_regularizer=l2(factor/10),
                                  kernel_initializer=tf.keras.initializers.he_normal()))
     model.add(keras.layers.BatchNormalization())
-    model.add(keras.layers.Dropout(rate / 2))
+    model.add(keras.layers.Dropout(rate/2))
     model.add(keras.layers.Dense(64, activation='relu',
-                                 # activity_regularizer=l2(factor / 10),
-                                 kernel_regularizer=l2(factor),
+                                 # activity_regularizer=l2(factor / 2),
+                                 # kernel_regularizer=l2(factor/10),
                                  kernel_initializer=tf.keras.initializers.he_normal()))
     model.add(keras.layers.BatchNormalization())
-    model.add(keras.layers.Dropout(rate / 2))
+    model.add(keras.layers.Dropout(rate/2))
     model.add(keras.layers.Dense(32, activation='relu',
-                                 # activity_regularizer=l2(factor / 10),
-                                 kernel_regularizer=l2(factor),
+                                 # activity_regularizer=l2(factor / 2),
+                                 # kernel_regularizer=l2(factor/3),
                                  kernel_initializer=tf.keras.initializers.he_normal()))
     model.add(keras.layers.BatchNormalization())
-    model.add(keras.layers.Dropout(rate / 4))
-    model.add(keras.layers.Dense(3, activation='softmax', kernel_regularizer=l2(factor/100)))
+    model.add(keras.layers.Dropout(rate/3))
+    model.add(keras.layers.Dense(16, activation='relu',
+                                 # activity_regularizer=l2(factor / 2),
+                                 # kernel_regularizer=l2(factor),
+                                 kernel_initializer=tf.keras.initializers.he_normal()))
+    model.add(keras.layers.Dense(3, activation='softmax', kernel_initializer=tf.keras.initializers.he_normal()))
     model.compile(loss=categorical_crossentropy_with_bets,
-                  optimizer=keras.optimizers.Adam(learning_rate=0.0003),
+                  optimizer=keras.optimizers.Adam(learning_rate=0.0015),
                   metrics=[categorical_acc_with_bets, only_best_prob_odds_profit_within_threshold(confidence_threshold)])
     # only_best_prob_odds_profit
     return model
@@ -102,12 +103,12 @@ def perform_nn_learning(model, train_set, val_set):
     y_val = val_set[1]
 
     # tf.compat.v1.disable_eager_execution()
-    history = model.fit(x_train, y_train, epochs=250, batch_size=128, verbose=1, shuffle=False, validation_data=val_set[0:2],
-                        callbacks=[EarlyStopping(patience=50, min_delta=0.0001, monitor='val_profit', mode='max', verbose=1),
-                                   ModelCheckpoint(saved_weights_location, save_best_only=True, save_weights_only=True,
-                                                   monitor='val_profit',
+    history = model.fit(x_train, y_train, epochs=350, batch_size=128, verbose=1, shuffle=False, validation_data=val_set[0:2],
+                        callbacks=[EarlyStopping(patience=60, monitor='val_profit', mode='max', verbose=1),
+                                   ModelCheckpoint(saved_weights_location, save_best_only=True, save_weights_only=True, monitor='val_profit',
                                                    mode='max', verbose=1)]
-                        # TensorBoard(write_grads=True, histogram_freq=1, log_dir='.\\tf_logs', write_images=True, write_graph=True)]
+                        # callbacks=[TensorBoard(write_grads=True, histogram_freq=1, log_dir='.\\tf_logs', write_graph=True)]
+                        # callbacks=[WeightChangeMonitor()]
                         )
 
     model.load_weights(saved_weights_location)
@@ -119,6 +120,5 @@ def perform_nn_learning(model, train_set, val_set):
 
     plot_metric(history, 'loss')
     plot_metric(history, 'profit')
-    plot_metric(history, 'categorical_acc_with_bets')
     save_model(model)
     return model
