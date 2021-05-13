@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 from tensorflow import keras
 import pandas as pd
 
-from dataset_manager.dataset_manager import get_curr_dataset_column_names
+from dataset_manager.common_funtions import get_curr_dataset_column_names
 
 confidence_threshold = 0.015
 results_to_description_dict = {0: 'Wygrana gospodarzy', 1: 'Remis', 2: 'Wygrana gości', 3: 'Brak zakładu'}

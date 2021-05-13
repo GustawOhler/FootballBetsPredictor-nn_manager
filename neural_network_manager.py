@@ -1,20 +1,11 @@
-import math
-from enum import Enum
 # import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras import layers
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
-from tensorflow.python.keras.callbacks_v1 import TensorBoard
-from tensorflow.python.keras.regularizers import l2
-import matplotlib.pyplot as plt
-import numpy as np
+from constants import saved_model_location, saved_weights_location
 from nn_manager.common import plot_metric, eval_model_after_learning
 from nn_manager.metrics import only_best_prob_odds_profit, odds_loss, how_many_no_bets
-
-saved_model_location = "./NN_full_model/"
-saved_weights_location = "./NN_model_weights/checkpoint_weights"
 
 
 def create_NN_model(x_train):
