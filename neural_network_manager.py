@@ -8,7 +8,29 @@ from tensorflow.python.keras.regularizers import l2
 from constants import saved_model_location, saved_weights_location
 from nn_manager.common import plot_metric, eval_model_after_learning
 from nn_manager.metrics import only_best_prob_odds_profit, odds_loss, how_many_no_bets, profit_wrapped_in_sqrt_loss
+from abc import ABCMeta, abstractmethod, ABC
 
+
+class NeuralNetworkManager(ABC):
+    def __init__(self, train_set, val_set):
+        self.model = self.create_model()
+        self.x_train = train_set[0]
+        self.y_train = train_set[1]
+        self.x_val = val_set[0]
+        self.y_val = val_set[1]
+        self.history = None
+
+    @abstractmethod
+    def create_model(self):
+        pass
+
+    @abstractmethod
+    def perform_model_learning(self):
+        pass
+
+    @abstractmethod
+    def evaluate_model(self):
+        pass
 
 def create_NN_model(x_train):
     test_factor = 1e-10
