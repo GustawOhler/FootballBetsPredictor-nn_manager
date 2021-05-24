@@ -28,7 +28,7 @@ def profit_wrapped_in_sqrt_loss(y_true, y_pred):
     gain_loss_vector = tf.concat([win_home_team * (odds_a - 1) + (1 - win_home_team) * -1,
                                   draw * (odds_draw - 1) + (1 - draw) * -1,
                                   win_away * (odds_b - 1) + (1 - win_away) * -1,
-                                  tf.zeros_like(odds_a)], axis=1)
+                                  tf.ones_like(odds_a) * -0.01], axis=1)
     # zeros = tf.zeros_like(y_pred, dtype='float32')
     # ones = tf.ones_like(y_pred, dtype='float32')
     # zerod_prediction = tf.where(
@@ -36,15 +36,28 @@ def profit_wrapped_in_sqrt_loss(y_true, y_pred):
     #     y_pred * 0.1,
     #     y_pred
     # )
-    epsilon = 0.000001
+    epsilon = 1e-10
+    epsilon2 = 1e-4
+    log_epsilon = 1
     # log = (tf.math.log(tf.clip_by_value(y_pred*y_true[:, 0:4], epsilon, 1.0 - epsilon))+tf.math.log(tf.clip_by_value((1.0-y_pred)*(1.0-y_true[:, 0:4]), epsilon,
     #                                                                                                            1.0 - epsilon)))*gain_loss_vector
     # function_value = log * gain_loss_vector
-    predicted_gain_los = y_pred * gain_loss_vector
-    predicted_gain_loss_abs = tf.clip_by_value(tf.math.abs(predicted_gain_los), epsilon, tf.float32.max)
-    # tf.math.pow(0.5, predicted_gain_los)-(predicted_gain_los / predicted_gain_loss_abs * tf.math.sqrt(predicted_gain_loss_abs))
-    function_value = -(predicted_gain_los / predicted_gain_loss_abs * tf.math.sqrt(predicted_gain_loss_abs))
-    return tf.reduce_mean(tf.reduce_sum(function_value, axis=1))
+    predicted_gain_loss = y_pred * gain_loss_vector
+    predicted_gain_loss_log_clipped = tf.clip_by_value(y_pred * gain_loss_vector, -2.0+epsilon, tf.float32.max)
+    predicted_gain_loss_abs = tf.clip_by_value(tf.math.abs(predicted_gain_loss), epsilon, tf.float32.max)
+    summed_gain_loss = tf.reduce_sum(predicted_gain_loss, axis=1)
+    summed_gain_loss_abs = tf.clip_by_value(tf.math.abs(summed_gain_loss), epsilon, tf.float32.max)
+    predicted_gain_loss_clipped = tf.clip_by_value(summed_gain_loss, epsilon, tf.float32.max)
+    log_gain_loss_clipped = tf.clip_by_value(summed_gain_loss, -2.0+epsilon, tf.float32.max)
+    # function_value = tf.math.pow(0.5, (predicted_gain_loss - 1.0))
+    # function_value = tf.math.pow(0.5, (summed_gain_loss-1.0))
+    # function_value = tf.math.pow(0.5, predicted_gain_loss)-(predicted_gain_loss / predicted_gain_loss_abs * tf.math.sqrt(predicted_gain_loss_abs))
+    function_value = tf.math.pow(0.5, summed_gain_loss-1.0)-(tf.math.log(predicted_gain_loss_clipped+1.0))
+    # function_value = -(summed_gain_loss / summed_gain_loss_abs * tf.math.pow(summed_gain_loss, 2.0))-(tf.math.log(predicted_gain_loss_clipped+1.0))
+    # function_value = -(tf.math.log(predicted_gain_loss_log_clipped+2.0))
+    # function_value = -(predicted_gain_loss / predicted_gain_loss_abs * tf.math.sqrt(predicted_gain_loss_abs))
+    # return tf.reduce_mean(tf.reduce_sum(function_value, axis=1))
+    return tf.reduce_mean(function_value)
 
 
 def only_best_prob_odds_profit():
@@ -62,8 +75,8 @@ def only_best_prob_odds_profit():
                                       tf.zeros_like(odds_a)], axis=1)
         zerod_prediction = tf.where(
             tf.not_equal(tf.reduce_max(y_pred, axis=1, keepdims=True), y_pred),
-            tf.zeros_like(y_pred),
-            tf.ones_like(y_pred)
+            tf.zeros_like(y_pred, dtype='float32'),
+            tf.ones_like(y_pred, dtype='float32')
         )
         return tf.reduce_mean(tf.reduce_sum(gain_loss_vector * zerod_prediction, axis=1))
 
