@@ -1,10 +1,12 @@
 # import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-from abc import ABCMeta, abstractmethod, ABC
+from abc import abstractmethod, ABC
+from tensorflow import keras
 
 
 class NeuralNetworkManager(ABC):
     def __init__(self, train_set, val_set):
+        keras.backend.clear_session()
         self.model = self.create_model()
         self.x_train = train_set[0]
         self.y_train = train_set[1]
@@ -23,4 +25,3 @@ class NeuralNetworkManager(ABC):
     @abstractmethod
     def evaluate_model(self):
         pass
-
