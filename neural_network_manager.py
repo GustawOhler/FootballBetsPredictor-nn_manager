@@ -1,5 +1,6 @@
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+# import os
+# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+from abc import ABCMeta, abstractmethod
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
@@ -9,6 +10,27 @@ from constants import saved_model_location, saved_weights_location, confidence_t
 from nn_manager.common import plot_metric, eval_model_after_learning, eval_model_after_learning_within_threshold
 from nn_manager.metrics import only_best_prob_odds_profit, odds_loss, how_many_no_bets, categorical_crossentropy_with_bets, categorical_acc_with_bets, \
     only_best_prob_odds_profit_within_threshold, odds_profit_within_threshold
+from constants import saved_weights_location, confidence_threshold
+from nn_manager.common import plot_metric, eval_model_after_learning_within_threshold, save_model
+from nn_manager.metrics import categorical_crossentropy_with_bets, categorical_acc_with_bets, \
+    only_best_prob_odds_profit_within_threshold
+
+
+class NeuralNetworkManager(metaclass=ABCMeta):
+    def __init__(self):
+        self.model = create_NN_model()
+
+    @abstractmethod
+    def create_model(self):
+        pass
+
+    @abstractmethod
+    def perform_model_learning(self):
+        pass
+
+    @abstractmethod
+    def evaluate_model(self):
+        pass
 
 
 def create_NN_model(x_train):
@@ -40,14 +62,6 @@ def create_NN_model(x_train):
                   optimizer=keras.optimizers.Adam(learning_rate=0.00025),
                   metrics=[categorical_acc_with_bets, odds_profit_within_threshold(confidence_threshold)])
     return model
-
-
-def save_model(model):
-    model.save(saved_model_location, overwrite=True)
-
-
-def load_model():
-    return keras.models.load_model(saved_model_location)
 
 
 def perform_nn_learning(model, train_set, val_set):

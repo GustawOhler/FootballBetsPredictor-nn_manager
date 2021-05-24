@@ -1,12 +1,10 @@
-import math
 from enum import Enum
 import numpy as np
 from matplotlib import pyplot as plt
 from tensorflow import keras
 import pandas as pd
 
-from constants import confidence_threshold, results_to_description_dict
-from dataset_manager.class_definitions import DatasetType
+from constants import confidence_threshold, results_to_description_dict, saved_model_location
 from dataset_manager.common_funtions import get_curr_dataset_column_names
 from dataset_manager.dataset_manager import load_ids_in_right_order
 from models import Match
@@ -24,13 +22,13 @@ def plot_metric(history, metric):
     plt.legend(["train_" + metric, 'val_' + metric])
     if metric == 'loss':
         # concated_metrics = np.concatenate((np.asarray(train_metrics), np.asarray(val_metrics)))
-        # # concated_metrics = concated_metrics[concated_metrics < 30]
+        # concated_metrics = concated_metrics[concated_metrics < 30]
         # avg = np.average(concated_metrics)
         # std_dev = math.sqrt(np.sum(concated_metrics * concated_metrics) / len(concated_metrics) - avg ** 2)
-        # start = avg - std_dev
-        # end = avg + 2 * std_dev
+        # start = avg - 1.25 * std_dev
+        # end = avg + 1.25 * std_dev
         # plt.ylim([start, end])
-        plt.ylim([0.85, 1.15])
+        plt.ylim([-1, 0.75])
     if metric == 'profit':
         plt.axhline(y=0, color='r')
     plt.show()
@@ -197,3 +195,11 @@ def get_debug_infos_within_threshold(x, y_pred, y_true):
     ids = np.delete(load_ids_in_right_order(DatasetType.VAL), indexes_to_drop)
     debug_infos = get_debug_infos(x_val_dropped, prediction_classes, y_classes, odds_dropped).assign(match_ids=pd.Series(ids))
     return {'dataset_object': debug_infos, 'db_object': Match.select().where(Match.id << ids)}
+
+
+def save_model(model):
+    model.save(saved_model_location, overwrite=True)
+
+
+def load_model():
+    return keras.models.load_model(saved_model_location)
