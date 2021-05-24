@@ -72,6 +72,39 @@ def only_best_prob_odds_profit_within_threshold(threshold):
     return inner_metric
 
 
+def odds_profit_within_threshold(threshold):
+    def inner_metric(y_true, y_pred):
+        win_home_team = y_true[:, 0:1]
+        draw = y_true[:, 1:2]
+        win_away = y_true[:, 2:3]
+        no_bet = y_true[:, 3:4]
+        odds_a = y_true[:, 4:5]
+        odds_draw = y_true[:, 5:6]
+        odds_b = y_true[:, 6:7]
+        gain_loss_vector = tf.concat([win_home_team * (odds_a - 1) + (1 - win_home_team) * -1,
+                                      draw * (odds_draw - 1) + (1 - draw) * -1,
+                                      win_away * (odds_b - 1) + (1 - win_away) * -1
+                                      # tf.zeros_like(odds_a)
+                                      ], axis=1)
+        outcome_possibilities = 1.0/y_true[:, 4:7]
+        prediction_diff = tf.subtract(y_pred, outcome_possibilities)
+        highest_gap_prediction = tf.reduce_max(prediction_diff, axis=1, keepdims=True)
+        zerod_prediction = tf.where(
+            tf.not_equal(highest_gap_prediction, prediction_diff),
+            tf.zeros_like(prediction_diff),
+            prediction_diff
+        )
+        predictions_above_threshold = tf.where(
+            tf.greater_equal(zerod_prediction, threshold),
+            tf.ones_like(zerod_prediction),
+            tf.zeros_like(zerod_prediction)
+        )
+        return tf.reduce_mean(tf.reduce_sum(gain_loss_vector * predictions_above_threshold, axis=1))
+
+    inner_metric.__name__ = 'profit'
+    return inner_metric
+
+
 def how_many_no_bets(y_true, y_pred):
     all_predictions = y_pred[:, 0:4]
     classes = tf.math.argmax(all_predictions, 1)
