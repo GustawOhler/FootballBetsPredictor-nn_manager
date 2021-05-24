@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 from tensorflow import keras
 import pandas as pd
 
-from constants import confidence_threshold, results_to_description_dict
+from constants import confidence_threshold, results_to_description_dict, saved_model_location
 from dataset_manager.common_funtions import get_curr_dataset_column_names
 
 
@@ -136,3 +136,11 @@ def eval_model_after_learning_within_threshold(y_true, y_pred, odds):
 #TODO: make it work!
 def get_debug_infos(x_train, y_pred, y_true):
     return {'attr': pd.DataFrame(data=x_train, columns=get_curr_dataset_column_names()), 'predictions': y_pred, 'true_labels': y_true}
+
+
+def save_model(model):
+    model.save(saved_model_location, overwrite=True)
+
+
+def load_model():
+    return keras.models.load_model(saved_model_location)

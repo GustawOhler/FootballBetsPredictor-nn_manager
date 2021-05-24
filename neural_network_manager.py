@@ -1,12 +1,30 @@
 # import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+from abc import ABCMeta, abstractmethod
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
-from constants import saved_model_location, saved_weights_location, confidence_threshold
-from nn_manager.common import plot_metric, eval_model_after_learning, eval_model_after_learning_within_threshold
-from nn_manager.metrics import only_best_prob_odds_profit, odds_loss, how_many_no_bets, categorical_crossentropy_with_bets, categorical_acc_with_bets, \
+from constants import saved_weights_location, confidence_threshold
+from nn_manager.common import plot_metric, eval_model_after_learning_within_threshold, save_model
+from nn_manager.metrics import categorical_crossentropy_with_bets, categorical_acc_with_bets, \
     only_best_prob_odds_profit_within_threshold
+
+
+class NeuralNetworkManager(metaclass=ABCMeta):
+    def __init__(self):
+        self.model = create_NN_model()
+
+    @abstractmethod
+    def create_model(self):
+        pass
+
+    @abstractmethod
+    def perform_model_learning(self):
+        pass
+
+    @abstractmethod
+    def evaluate_model(self):
+        pass
 
 
 def create_NN_model(x_train):
@@ -88,14 +106,6 @@ def create_NN_model(x_train):
     return model
 
 
-def save_model(model):
-    model.save(saved_model_location, overwrite=True)
-
-
-def load_model():
-    return keras.models.load_model(saved_model_location)
-
-
 def perform_nn_learning(model, train_set, val_set):
     x_train = train_set[0]
     y_train = train_set[1]
@@ -103,7 +113,7 @@ def perform_nn_learning(model, train_set, val_set):
     y_val = val_set[1]
 
     # tf.compat.v1.disable_eager_execution()
-    history = model.fit(x_train, y_train, epochs=350, batch_size=128, verbose=1, shuffle=False, validation_data=val_set[0:2],
+    history = model.fit(x_train, y_train, epochs=5, batch_size=128, verbose=1, shuffle=False, validation_data=val_set[0:2],
                         callbacks=[EarlyStopping(patience=60, monitor='val_profit', mode='max', verbose=1),
                                    ModelCheckpoint(saved_weights_location, save_best_only=True, save_weights_only=True, monitor='val_profit',
                                                    mode='max', verbose=1)]
