@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.python.keras.regularizers import l2
-from constants import saved_weights_location
+from constants import saved_model_weights_base_path, saved_model_based_path
 from nn_manager.common import eval_model_after_learning, plot_metric, save_model
 from nn_manager.metrics import profit_wrapped_in_sqrt_loss, how_many_no_bets, only_best_prob_odds_profit
 from nn_manager.neural_network_manager import NeuralNetworkManager
@@ -13,12 +13,12 @@ class NNChoosingBetsManager(NeuralNetworkManager):
         super().__init__(train_set, val_set)
 
     def create_model(self):
-        test_factor = 1e-10
+        test_factor = 1e-9
         # factor = 0.000001
         factor = test_factor
         test_rate = 0.01
         # rate = test_rate
-        rate = 0.45
+        rate = 0.5
 
         # tf.compat.v1.disable_eager_execution()
         model = tf.keras.models.Sequential()
@@ -68,15 +68,16 @@ class NNChoosingBetsManager(NeuralNetworkManager):
         self.history = self.model.fit(self.x_train, self.y_train, epochs=1000, batch_size=128, verbose=1, shuffle=False, validation_data=(self.x_val,
                                                                                                                                           self.y_val),
                                       validation_batch_size=25,
-                                      callbacks=[EarlyStopping(patience=100, monitor='val_loss', mode='min', verbose=1),
-                                                 ModelCheckpoint(saved_weights_location, save_best_only=True, save_weights_only=True, monitor='val_profit',
-                                                                 mode='max', verbose=1)]
+                                      callbacks=[
+                                          EarlyStopping(patience=200, monitor='val_loss', mode='min', verbose=1),
+                                                 ModelCheckpoint(self.get_path_for_saving_weights(), save_best_only=True, save_weights_only=True,
+                                                                 monitor='val_profit', mode='max', verbose=1)]
                                       # callbacks=[TensorBoard(write_grads=True, histogram_freq=1, log_dir='.\\tf_logs', write_graph=True)]
                                       # callbacks=[WeightChangeMonitor()]
                                       )
 
-        self.model.load_weights(saved_weights_location)
-        save_model(self.model)
+        self.model.load_weights(self.get_path_for_saving_weights())
+        save_model(self.model, self.get_path_for_saving_model())
 
     def evaluate_model(self):
         print("Treningowy zbior: ")

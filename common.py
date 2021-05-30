@@ -4,8 +4,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from tensorflow import keras
 import pandas as pd
-
-from constants import confidence_threshold, results_to_description_dict, saved_model_location
+from constants import confidence_threshold, results_to_description_dict, saved_model_based_path
+from dataset_manager.class_definitions import DatasetSplit
 from dataset_manager.common_funtions import get_curr_dataset_column_names
 from dataset_manager.dataset_manager import load_ids_in_right_order
 from models import Match
@@ -193,14 +193,14 @@ def get_debug_infos_within_threshold(x, y_pred, y_true):
     prediction_classes = prediction_diff_dropped.argmax(axis=1)
     y_classes = np.delete(y_classes, indexes_to_drop, axis=0).argmax(axis=1)
     odds_dropped = np.delete(odds, indexes_to_drop, axis=0)
-    ids = np.delete(load_ids_in_right_order(DatasetType.VAL), indexes_to_drop)
+    ids = np.delete(load_ids_in_right_order(DatasetSplit.VAL), indexes_to_drop)
     debug_infos = get_debug_infos(x_val_dropped, prediction_classes, y_classes, odds_dropped).assign(match_ids=pd.Series(ids))
     return {'dataset_object': debug_infos, 'db_object': Match.select().where(Match.id << ids)}
 
 
-def save_model(model):
-    model.save(saved_model_location, overwrite=True)
+def save_model(model, path):
+    model.save(path, overwrite=True)
 
 
-def load_model():
-    return keras.models.load_model(saved_model_location)
+def load_model(path):
+    return keras.models.load_model(path)

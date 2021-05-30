@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.python.keras.regularizers import l2
-from constants import confidence_threshold, saved_weights_location
+from constants import confidence_threshold, saved_model_weights_base_path
 from nn_manager.common import eval_model_after_learning_within_threshold, plot_metric, save_model
 from nn_manager.metrics import categorical_crossentropy_with_bets, categorical_acc_with_bets, odds_profit_within_threshold
 from nn_manager.neural_network_manager import NeuralNetworkManager
@@ -45,14 +45,14 @@ class NNPredictingMatchesManager(NeuralNetworkManager):
     def perform_model_learning(self):
         self.history = self.model.fit(self.x_train, self.y_train, epochs=50, batch_size=128, verbose=1, shuffle=False, validation_data=(self.x_val, self.y_val),
                                       callbacks=[EarlyStopping(patience=125, monitor='val_loss', mode='min', verbose=1),
-                                                 ModelCheckpoint(saved_weights_location, save_best_only=True, save_weights_only=True, monitor='val_profit',
-                                                                 mode='max', verbose=1)]
+                                                 ModelCheckpoint(self.get_path_for_saving_weights(), save_best_only=True, save_weights_only=True,
+                                                                 monitor='val_profit', mode='max', verbose=1)]
                                       # callbacks=[TensorBoard(write_grads=True, histogram_freq=1, log_dir='.\\tf_logs', write_graph=True)]
                                       # callbacks=[WeightChangeMonitor()]
                                       )
 
-        self.model.load_weights(saved_weights_location)
-        save_model(self.model)
+        self.model.load_weights(self.get_path_for_saving_weights())
+        save_model(self.model, self.get_path_for_saving_model())
 
     def evaluate_model(self):
         print("Treningowy zbior: ")
