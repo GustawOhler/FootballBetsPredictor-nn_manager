@@ -9,11 +9,11 @@ from nn_manager.common import load_model
 class NeuralNetworkManager(ABC):
     def __init__(self, train_set, val_set):
         keras.backend.clear_session()
-        self.model = self.create_model()
         self.x_train = train_set[0]
         self.y_train = train_set[1]
         self.x_val = val_set[0]
         self.y_val = val_set[1]
+        self.model = self.create_model()
         self.history = None
 
     @abstractmethod
