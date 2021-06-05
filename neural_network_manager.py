@@ -1,5 +1,3 @@
-# import os
-# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 from abc import abstractmethod, ABC
 from tensorflow import keras
 from constants import saved_model_based_path, saved_model_weights_base_path
@@ -21,7 +19,7 @@ class NeuralNetworkManager(ABC):
         pass
 
     @abstractmethod
-    def perform_model_learning(self):
+    def perform_model_learning(self, verbose=True):
         pass
 
     @abstractmethod
