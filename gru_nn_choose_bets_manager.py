@@ -11,15 +11,24 @@ from nn_manager.neural_network_manager import NeuralNetworkManager
 
 class GruNNChoosingBetsManager(NeuralNetworkManager):
     def __init__(self, train_set, val_set, should_hyper_tune):
-        self.best_params = [8e-4, 5, 28, 0]
+        self.old_best = [8e-4, 5, 28, 0]
+        self.best_params = {
+            "regularization_factor": 0.0096,
+            "number_of_gru_units": 2,
+            "number_of_hidden_units_input_layer": 8, 
+            "number_of_addit_hidden_layers": 0,
+            "learning_rate": 0.0001
+        }
         super().__init__(train_set, val_set, should_hyper_tune)
 
     def create_model(self, hp: kt.HyperParameters = None):
-        factor = self.best_params[0] if not self.should_hyper_tune else hp.Float('regularization_factor', 1e-4, 1e-2, step=1e-4)
+        factor = self.best_params["regularization_factor"] if not self.should_hyper_tune else hp.Float('regularization_factor', 1e-4, 1e-2, step=1e-4)
         gru_regularization_factor = 1e-3
-        number_of_gru_units = self.best_params[1] if not self.should_hyper_tune else hp.Choice('number_of_gru_units', [1, 2, 4, 8, 16])
-        first_hidden_units = self.best_params[2] if not self.should_hyper_tune else hp.Int('number_of_hidden_units_input_layer', 4, 32, step=4)
-        n_hidden_layers = self.best_params[3] if not self.should_hyper_tune else hp.Int('number_of_add_hidden_layers', 0, 2)
+        number_of_gru_units = self.best_params["number_of_gru_units"] if not self.should_hyper_tune else hp.Choice('number_of_gru_units', [1, 2, 4, 8, 16])
+        first_hidden_units = self.best_params["number_of_hidden_units_input_layer"] if not self.should_hyper_tune else hp.Int('number_of_hidden_units_input_layer', 4, 32, step=4)
+        n_hidden_layers = self.best_params["number_of_addit_hidden_layers"] if not self.should_hyper_tune else hp.Int('number_of_addit_hidden_layers', 0, 3)
+        learning_rate = self.best_params["learning_rate"] if not self.should_hyper_tune else hp.Float('learning_rate', 1e-5, 1e-3, step=1e-5)
+
 
         home_input = tf.keras.layers.Input((self.x_train[0].shape[1], self.x_train[0].shape[2],))
         home_rnn = tf.keras.layers.GRU(number_of_gru_units,
@@ -45,8 +54,8 @@ class GruNNChoosingBetsManager(NeuralNetworkManager):
                                          kernel_initializer=tf.keras.initializers.he_normal())(all_merged)
         for i in range(n_hidden_layers):
             main_hidden = keras.layers.Dense(hp.Int(f'number_of_hidden_units_{i}_layer', 4, 16, step=4,
-                                                    parent_name='number_of_add_hidden_layers',
-                                                    parent_values=range(i+1, n_hidden_layers+1)
+                                                    parent_name='number_of_addit_hidden_layers',
+                                                    parent_values=list(range(i + 1, n_hidden_layers + 1))
                                                     ), activation='relu',
                                              kernel_regularizer=l2(factor),
                                              bias_regularizer=l2(factor),
@@ -54,28 +63,28 @@ class GruNNChoosingBetsManager(NeuralNetworkManager):
         main_hidden = keras.layers.Dense(4, activation='softmax')(main_hidden)
         main_model = keras.models.Model(inputs=[home_input, away_input, rest_of_input], outputs=main_hidden)
 
-        opt = keras.optimizers.Adam(learning_rate=0.0001)
+        opt = keras.optimizers.Adam(learning_rate=learning_rate)
         main_model.compile(loss=profit_wrapped_in_sqrt_loss,
                            optimizer=opt,
                            metrics=[how_many_no_bets, only_best_prob_odds_profit()])
         return main_model
 
     def perform_model_learning(self, verbose=True):
-        self.history = self.model.fit(x=[self.x_train[0], self.x_train[1], self.x_train[2]], y=self.y_train, epochs=500,
+        self.history = self.model.fit(x=[self.x_train[0], self.x_train[1], self.x_train[2]], y=self.y_train, epochs=750,
                                       batch_size=128,
                                       verbose=1 if verbose is True else 0,
-                                      shuffle=False,
+                                      shuffle=True,
                                       validation_data=([self.x_val[0], self.x_val[1], self.x_val[2]], self.y_val),
                                       # validation_batch_size=125,
-                                      callbacks=[
-                                          EarlyStopping(patience=50, monitor='val_profit', mode='max', verbose=1 if verbose is True else 0),
-                                          ModelCheckpoint(self.get_path_for_saving_weights(), save_best_only=True, save_weights_only=True,
-                                                          monitor='val_profit', mode='max', verbose=1 if verbose is True else 0)]
+                                      # callbacks=[
+                                          # EarlyStopping(patience=100, monitor='val_profit', mode='max', verbose=1 if verbose is True else 0),
+                                          # ModelCheckpoint(self.get_path_for_saving_weights(), save_best_only=True, save_weights_only=True,
+                                          #                 monitor='val_profit', mode='max', verbose=1 if verbose is True else 0)]
                                       # callbacks=[TensorBoard(write_grads=True, histogram_freq=1, log_dir='.\\tf_logs', write_graph=True)]
                                       # callbacks=[WeightChangeMonitor()]
                                       )
 
-        self.model.load_weights(self.get_path_for_saving_weights())
+        # self.model.load_weights(self.get_path_for_saving_weights())
         # save_model(self.model, self.get_path_for_saving_model())
 
     def hyper_tune_model(self):
@@ -84,14 +93,21 @@ class GruNNChoosingBetsManager(NeuralNetworkManager):
         #              max_epochs=99,
         #              factor=3,
         #              hyperband_iterations=1)
-        tuner = kt.RandomSearch(self.create_model,
-                                objective=kt.Objective('val_profit', 'max'),
-                                max_trials=35,
-                                executions_per_trial=3,
-                                directory='.\\hypertuning',
-                                project_name=self.__class__.__name__,
-                                overwrite=True)
-        tuner.search(x=[self.x_train[0], self.x_train[1], self.x_train[2]], y=self.y_train, epochs=250, batch_size=128,
+        # tuner = kt.RandomSearch(self.create_model,
+        #                         objective=kt.Objective('val_profit', 'max'),
+        #                         max_trials=35,
+        #                         executions_per_trial=3,
+        #                         directory='.\\hypertuning',
+        #                         project_name=self.__class__.__name__,
+        #                         overwrite=True)
+        tuner = kt.BayesianOptimization(self.create_model,
+                                        objective=kt.Objective('val_profit', 'max'),
+                                        max_trials=35,
+                                        executions_per_trial=3,
+                                        directory='.\\hypertuning',
+                                        project_name=self.__class__.__name__,
+                                        overwrite=True)
+        tuner.search(x=[self.x_train[0], self.x_train[1], self.x_train[2]], y=self.y_train, epochs=250, batch_size=128, verbose=2,
                      callbacks=[EarlyStopping(patience=60, monitor='val_profit', mode='max', verbose=1)],
                      validation_data=([self.x_val[0], self.x_val[1], self.x_val[2]], self.y_val))
         return tuner

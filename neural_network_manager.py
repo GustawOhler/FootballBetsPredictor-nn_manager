@@ -18,7 +18,7 @@ class NeuralNetworkManager(ABC):
 
 
     @abstractmethod
-    def create_model(self):
+    def create_model(self, hp=None):
         pass
 
     @abstractmethod

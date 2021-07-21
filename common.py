@@ -4,7 +4,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from tensorflow import keras
 import pandas as pd
-from constants import confidence_threshold, results_to_description_dict, saved_model_based_path
+from constants import results_to_description_dict, saved_model_based_path
 from dataset_manager.class_definitions import DatasetSplit
 from dataset_manager.common_funtions import get_curr_dataset_column_names
 from dataset_manager.dataset_manager import load_ids_in_right_order
@@ -51,7 +51,7 @@ def show_winnings(predicted_classes, actual_classes, odds):
 
 
 # sprawdzanie wygranych dla obstawiania zakladow z najwiekszym prawdopodobienstwem (i roznica w podanym progu)
-def show_winnings_within_threshold_only_highest_prob(classes_possibilities, actual_classes, odds):
+def show_winnings_within_threshold_only_highest_prob(classes_possibilities, actual_classes, odds, threshold):
     winnings = 0.0
     no_bet = 0
     outcome_possibilities = 1.0 / odds
@@ -59,7 +59,7 @@ def show_winnings_within_threshold_only_highest_prob(classes_possibilities, actu
     chosen_class = classes_possibilities.argmax(axis=-1)
     for i in range(prediction_diff.shape[0]):
         # Jesli siec zdecydowala sie nie obstawiac meczu
-        if prediction_diff[i][chosen_class[i]] < confidence_threshold:
+        if prediction_diff[i][chosen_class[i]] < threshold:
             no_bet += 1
             continue
         elif chosen_class[i] == actual_classes[i]:
@@ -72,7 +72,7 @@ def show_winnings_within_threshold_only_highest_prob(classes_possibilities, actu
 
 # sprawdzanie wygranych dla obstawiania zakladow z najwieksza roznica pomiedzy prawdopodobienstwem przewidzianym przez bukmachera a
 # prawdopodobienstwem przewidzianym przez siec
-def show_winnings_within_threshold_every_bet(classes_possibilities, actual_classes, odds):
+def show_winnings_within_threshold_every_bet(classes_possibilities, actual_classes, odds, threshold):
     winnings = 0.0
     no_bet = 0
     outcome_possibilities = 1.0 / odds
@@ -81,7 +81,7 @@ def show_winnings_within_threshold_every_bet(classes_possibilities, actual_class
     for i in range(prediction_diff.shape[0]):
         for j in range(prediction_diff.shape[1]):
             # Jesli siec zdecydowala sie nie obstawiac meczu
-            if prediction_diff[i][j] < confidence_threshold:
+            if prediction_diff[i][j] < threshold:
                 no_bet += 1
                 continue
             elif j == actual_classes[i]:
@@ -116,23 +116,23 @@ def show_accuracy_for_classes(predicted_classes, actual_classes):
           + "% (" + str(not_bet_sum) + "/" + str(all_classes_len) + ")")
 
 
-def show_accuracy_within_threshold_only_highest_prob(classes_possibilities, actual_classes, odds):
+def show_accuracy_within_threshold_only_highest_prob(classes_possibilities, actual_classes, odds, threshold):
     outcome_possibilities = 1.0 / odds
     prediction_diff = classes_possibilities - outcome_possibilities
     chosen_class = classes_possibilities.argmax(axis=-1)
     for index, c in enumerate(chosen_class):
-        if prediction_diff[index, c] < confidence_threshold:
+        if prediction_diff[index, c] < threshold:
             chosen_class[index] = Categories.NO_BET.value
     show_accuracy_for_classes(chosen_class, actual_classes)
 
 
-def show_accuracy_within_threshold_every_bet(classes_possibilities, actual_classes, odds):
+def show_accuracy_within_threshold_every_bet(classes_possibilities, actual_classes, odds, threshold):
     outcome_possibilities = 1.0 / odds
     prediction_diff = classes_possibilities - outcome_possibilities
     prediction_diff = np.where(prediction_diff == np.amax(prediction_diff, axis=1, keepdims=1), prediction_diff, np.zeros_like(prediction_diff))
     chosen_class = prediction_diff.argmax(axis=-1)
     for index, c in enumerate(chosen_class):
-        if prediction_diff[index, c] < confidence_threshold:
+        if prediction_diff[index, c] < threshold:
             chosen_class[index] = Categories.NO_BET.value
     show_accuracy_for_classes(chosen_class, actual_classes)
 
@@ -163,13 +163,13 @@ def eval_model_after_learning(y_true, y_pred, odds):
     show_accuracy_for_classes(y_pred_classes, y_true_classes)
 
 
-def eval_model_after_learning_within_threshold(y_true, y_pred, odds):
+def eval_model_after_learning_within_threshold(y_true, y_pred, odds, threshold):
     y_pred_classes = y_pred.argmax(axis=-1)
     y_true_classes = y_true.argmax(axis=-1)
     # show_winnings_within_threshold_only_highest_prob(y_pred, y_true_classes, odds)
     # show_accuracy_within_threshold(y_pred, y_true_classes, odds)
-    show_winnings_within_threshold_every_bet(y_pred, y_true_classes, odds)
-    show_accuracy_within_threshold_every_bet(y_pred, y_true_classes, odds)
+    show_winnings_within_threshold_every_bet(y_pred, y_true_classes, odds, threshold)
+    show_accuracy_within_threshold_every_bet(y_pred, y_true_classes, odds, threshold)
 
 
 def get_debug_infos(x, y_pred, y_true, odds):
@@ -182,12 +182,12 @@ def get_debug_infos(x, y_pred, y_true, odds):
     return df
 
 
-def get_debug_infos_within_threshold(x, y_pred, y_true):
+def get_debug_infos_within_threshold(x, y_pred, y_true, threshold):
     odds = y_true[:, 4:7]
     y_classes = y_true[:, 0:3]
     outcome_possibilities = 1.0 / odds
     prediction_diff = y_pred - outcome_possibilities
-    indexes_to_drop = np.where(np.all(prediction_diff < confidence_threshold, axis=1))
+    indexes_to_drop = np.where(np.all(prediction_diff < threshold, axis=1))
     x_val_dropped = np.delete(x, indexes_to_drop, axis=0)
     prediction_diff_dropped = np.delete(prediction_diff, indexes_to_drop, axis=0)
     prediction_classes = prediction_diff_dropped.argmax(axis=1)

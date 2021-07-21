@@ -1,4 +1,5 @@
 import tensorflow as tf
+import kerastuner as kt
 from tensorflow import keras
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.python.keras.regularizers import l2
@@ -10,33 +11,44 @@ from nn_manager.neural_network_manager import NeuralNetworkManager
 
 class RecurrentNNChoosingBetsManager(NeuralNetworkManager):
     def __init__(self, train_set, val_set):
+        self.best_params = {
+            "regularization_factor": 0.001,
+            "number_of_gru_units": 16,
+            "number_of_hidden_units_input_layer": 64,
+            "number_of_addit_hidden_layers": 0,
+            # "n_of_neurons": [5],
+            "learning_rate": 0.0003,
+        }
         super().__init__(train_set, val_set)
 
-    def create_model(self):
-        # test_factor = 1e-9
-        factor = 0.001
-        # factor = test_factor
-        test_rate = 0.01
-        # rate = test_rate
-        rate = 0.5
+    def create_model(self, hp: kt.HyperParameters = None):
+        factor = self.best_params["regularization_factor"] if not self.should_hyper_tune else hp.Float('regularization_factor', 1e-4, 1e-2, step=1e-4)
+        gru_regularization_factor = 1e-3
+        number_of_gru_units = self.best_params["number_of_gru_units"] if not self.should_hyper_tune else hp.Choice('number_of_gru_units', [1, 2, 4, 8, 16])
+        first_hidden_units = self.best_params["number_of_hidden_units_input_layer"] if not self.should_hyper_tune else hp.Int(
+            'number_of_hidden_units_input_layer', 4, 32, step=4)
+        n_hidden_layers = self.best_params["number_of_addit_hidden_layers"] if not self.should_hyper_tune else hp.Int('number_of_addit_hidden_layers', 0, 3)
+        learning_rate = self.best_params["learning_rate"] if not self.should_hyper_tune else hp.Float('learning_rate', 1e-5, 1e-3, step=1e-5)
 
         # tf.compat.v1.disable_eager_execution()
 
         home_input = tf.keras.layers.Input((self.x_train[0].shape[1], self.x_train[0].shape[2],))
-        home_rnn = tf.keras.layers.SimpleRNN(16,
-                                             kernel_regularizer=l2(factor),
-                                             bias_regularizer=l2(factor),
-                                             recurrent_regularizer=l2(factor),
-                                             dropout=0.2,
-                                             recurrent_dropout=0.3)(home_input)
+        home_rnn = tf.keras.layers.SimpleRNN(number_of_gru_units,
+                                             kernel_regularizer=l2(gru_regularization_factor),
+                                             bias_regularizer=l2(gru_regularization_factor),
+                                             recurrent_regularizer=l2(gru_regularization_factor/3)
+                                             # dropout=0.2,
+                                             # recurrent_dropout=0.3
+                                             )(home_input)
 
         away_input = tf.keras.layers.Input((self.x_train[1].shape[1], self.x_train[1].shape[2],))
-        away_model = tf.keras.layers.SimpleRNN(16,
-                                               kernel_regularizer=l2(factor),
-                                               bias_regularizer=l2(factor),
-                                               recurrent_regularizer=l2(factor),
-                                               dropout=0.2,
-                                               recurrent_dropout=0.3)(away_input)
+        away_model = tf.keras.layers.SimpleRNN(number_of_gru_units,
+                                               kernel_regularizer=l2(gru_regularization_factor),
+                                               bias_regularizer=l2(gru_regularization_factor),
+                                               recurrent_regularizer=l2(gru_regularization_factor/3)
+                                               # dropout=0.2,
+                                               # recurrent_dropout=0.3
+                                               )(away_input)
 
         rest_of_input = tf.keras.layers.Input((self.x_train[2].shape[1],))
         # main_model = tf.keras.models.Sequential()
@@ -45,15 +57,30 @@ class RecurrentNNChoosingBetsManager(NeuralNetworkManager):
             away_model,
             rest_of_input
         ])
-        main_hidden = keras.layers.Dropout(0.5)(all_merged)
-        main_hidden = keras.layers.Dense(64, activation='relu',
-                                          kernel_regularizer=l2(factor),
-                                          bias_regularizer=l2(factor),
-                                          kernel_initializer=tf.keras.initializers.he_normal())(main_hidden)
+        main_hidden = keras.layers.Dense(first_hidden_units, activation='relu',
+                                         kernel_regularizer=l2(factor),
+                                         bias_regularizer=l2(factor),
+                                         kernel_initializer=tf.keras.initializers.he_normal())(all_merged)
+        for i in range(n_hidden_layers):
+            neurons_quantity = self.best_params["n_of_neurons"][i] if not self.should_hyper_tune else hp.Choice(f'number_of_neurons_{i}_layer',
+                                                                                                                [2, 4, 6, 8, 16, 32],
+                                                                                                                parent_name='number_of_addit_hidden_layers',
+                                                                                                                parent_values=list(
+                                                                                                                    range(i + 1, n_hidden_layers + 1))
+                                                                                                                )
+            main_hidden = keras.layers.Dense(neurons_quantity, activation='relu',
+                                             kernel_regularizer=l2(factor),
+                                             bias_regularizer=l2(factor),
+                                             kernel_initializer=tf.keras.initializers.he_normal())(main_hidden)
+        # main_hidden = keras.layers.Dropout(0.5)(all_merged)
+        # main_hidden = keras.layers.Dense(64, activation='relu',
+        #                                   kernel_regularizer=l2(factor),
+        #                                   bias_regularizer=l2(factor),
+        #                                   kernel_initializer=tf.keras.initializers.he_normal())(main_hidden)
         main_hidden = keras.layers.Dense(4, activation='softmax')(main_hidden)
         main_model = keras.models.Model(inputs=[home_input, away_input, rest_of_input], outputs=main_hidden)
 
-        opt = keras.optimizers.Adam(learning_rate=0.0003)
+        opt = keras.optimizers.Adam(learning_rate=learning_rate)
         main_model.compile(loss=profit_wrapped_in_sqrt_loss,
                            optimizer=opt,
                            metrics=[how_many_no_bets, only_best_prob_odds_profit()])
