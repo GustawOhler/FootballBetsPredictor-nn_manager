@@ -10,7 +10,7 @@ from nn_manager.neural_network_manager import NeuralNetworkManager
 
 
 class LstmNNChoosingBetsManager(NeuralNetworkManager):
-    def __init__(self, train_set, val_set, should_hyper_tune):
+    def __init__(self, train_set, val_set, should_hyper_tune, test_set):
         self.best_params = {
             "regularization_factor": 0.0096,
             "number_of_gru_units": 16,
@@ -18,7 +18,7 @@ class LstmNNChoosingBetsManager(NeuralNetworkManager):
             "number_of_addit_hidden_layers": 0,
             "learning_rate": 0.0003
         }
-        super().__init__(train_set, val_set, should_hyper_tune)
+        super().__init__(train_set, val_set, should_hyper_tune, test_set)
 
     def create_model(self, hp: kt.HyperParameters = None):
         # test_factor = 1e-9
@@ -107,14 +107,17 @@ class LstmNNChoosingBetsManager(NeuralNetworkManager):
         tuner.search(x=[self.x_train[0], self.x_train[1], self.x_train[2]], y=self.y_train, epochs=250, batch_size=128, verbose=2,
                      callbacks=[EarlyStopping(patience=60, monitor='val_profit', mode='max', verbose=1)],
                      validation_data=([self.x_val[0], self.x_val[1], self.x_val[2]], self.y_val))
+
+        self.print_summary_after_tuning(tuner, 10)
+
         return tuner
 
-    def evaluate_model(self):
-        print("Treningowy zbior: ")
-        eval_model_after_learning(self.y_train[:, 0:4], self.model.predict(self.x_train), self.y_train[:, 4:7])
-
-        print("Walidacyjny zbior: ")
-        eval_model_after_learning(self.y_val[:, 0:4], self.model.predict(self.x_val), self.y_val[:, 4:7])
-
-        plot_metric(self.history, 'loss')
-        plot_metric(self.history, 'profit')
+    # def evaluate_model(self):
+    #     print("Treningowy zbior: ")
+    #     eval_model_after_learning(self.y_train[:, 0:4], self.model.predict(self.x_train), self.y_train[:, 4:7])
+    #
+    #     print("Walidacyjny zbior: ")
+    #     eval_model_after_learning(self.y_val[:, 0:4], self.model.predict(self.x_val), self.y_val[:, 4:7])
+    #
+    #     plot_metric(self.history, 'loss')
+    #     plot_metric(self.history, 'profit')

@@ -112,12 +112,12 @@ class GruNNChoosingBetsManager(NeuralNetworkManager):
                      validation_data=([self.x_val[0], self.x_val[1], self.x_val[2]], self.y_val))
         return tuner
 
-    def evaluate_model(self):
-        print("Treningowy zbior: ")
-        eval_model_after_learning(self.y_train[:, 0:4], self.model.predict(self.x_train), self.y_train[:, 4:7])
-
-        print("Walidacyjny zbior: ")
-        eval_model_after_learning(self.y_val[:, 0:4], self.model.predict(self.x_val), self.y_val[:, 4:7])
-
-        plot_metric(self.history, 'loss')
-        plot_metric(self.history, 'profit')
+    # def evaluate_model(self):
+    #     print("Treningowy zbior: ")
+    #     eval_model_after_learning(self.y_train[:, 0:4], self.model.predict(self.x_train), self.y_train[:, 4:7])
+    #
+    #     print("Walidacyjny zbior: ")
+    #     eval_model_after_learning(self.y_val[:, 0:4], self.model.predict(self.x_val), self.y_val[:, 4:7])
+    #
+    #     plot_metric(self.history, 'loss')
+    #     plot_metric(self.history, 'profit')

@@ -104,12 +104,28 @@ class RecurrentNNChoosingBetsManager(NeuralNetworkManager):
         self.model.load_weights(self.get_path_for_saving_weights())
         # save_model(self.model, self.get_path_for_saving_model())
 
-    def evaluate_model(self):
-        print("Treningowy zbior: ")
-        eval_model_after_learning(self.y_train[:, 0:4], self.model.predict(self.x_train), self.y_train[:, 4:7])
+    def hyper_tune_model(self):
+        tuner = kt.BayesianOptimization(self.create_model,
+                                        objective=kt.Objective('val_profit', 'max'),
+                                        max_trials=35,
+                                        executions_per_trial=3,
+                                        directory='.\\hypertuning',
+                                        project_name=self.__class__.__name__,
+                                        overwrite=True)
+        tuner.search(x=[self.x_train[0], self.x_train[1], self.x_train[2]], y=self.y_train, epochs=250, batch_size=128, verbose=2,
+                     callbacks=[EarlyStopping(patience=60, monitor='val_profit', mode='max', verbose=1)],
+                     validation_data=([self.x_val[0], self.x_val[1], self.x_val[2]], self.y_val))
 
-        print("Walidacyjny zbior: ")
-        eval_model_after_learning(self.y_val[:, 0:4], self.model.predict(self.x_val), self.y_val[:, 4:7])
+        self.print_summary_after_tuning(tuner, 10)
 
-        plot_metric(self.history, 'loss')
-        plot_metric(self.history, 'profit')
+        return tuner
+
+    # def evaluate_model(self):
+    #     print("Treningowy zbior: ")
+    #     eval_model_after_learning(self.y_train[:, 0:4], self.model.predict(self.x_train), self.y_train[:, 4:7])
+    #
+    #     print("Walidacyjny zbior: ")
+    #     eval_model_after_learning(self.y_val[:, 0:4], self.model.predict(self.x_val), self.y_val[:, 4:7])
+    #
+    #     plot_metric(self.history, 'loss')
+    #     plot_metric(self.history, 'profit')
