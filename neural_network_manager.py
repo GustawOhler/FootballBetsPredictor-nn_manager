@@ -35,16 +35,16 @@ class NeuralNetworkManager(ABC):
     def evaluate_model(self, should_plot=True, should_print_train=True, hyperparams=None):
         if should_print_train:
             print("Treningowy zbior: ")
-            pprint.pprint(self.model.evaluate(self.x_train, self.y_train, verbose=0, batch_size=16, return_dict=True), width=1)
+            pprint.pprint(self.model.evaluate(self.x_train, self.y_train, verbose=0, batch_size=self.y_train.shape[0], return_dict=True), width=1)
             eval_model_after_learning(self.y_train[:, 0:4], self.model.predict(self.x_train), self.y_train[:, 4:7])
 
         print("Walidacyjny zbior: ")
-        pprint.pprint(self.model.evaluate(self.x_val, self.y_val, verbose=0, batch_size=16, return_dict=True), width=1)
+        pprint.pprint(self.model.evaluate(self.x_val, self.y_val, verbose=0, batch_size=self.y_train.shape[0], return_dict=True), width=1)
         eval_model_after_learning(self.y_val[:, 0:4], self.model.predict(self.x_val), self.y_val[:, 4:7])
 
         if self.x_test is not None:
             print("Testowy zbior: ")
-            pprint.pprint(self.model.evaluate(self.x_test, self.y_test, verbose=0, batch_size=16, return_dict=True), width=1)
+            pprint.pprint(self.model.evaluate(self.x_test, self.y_test, verbose=0, batch_size=self.y_train.shape[0], return_dict=True), width=1)
             eval_model_after_learning(self.y_test[:, 0:4], self.model.predict(self.x_test), self.y_test[:, 4:7])
 
         if should_plot:
@@ -66,10 +66,12 @@ class NeuralNetworkManager(ABC):
         with open(f'./hypertuning/{self.__class__.__name__}/summary.txt', 'w') as summary_file:
             sys.stdout = summary_file
             best_hyparam = tuner.get_best_hyperparameters(how_much_models)
+            best_trials = tuner.oracle.get_best_trials(how_much_models)
             for i, model in enumerate(tuner.get_best_models(how_much_models)):
                 self.model = model
                 print(f"Model {i + 1}:")
                 pprint.pprint(best_hyparam[i].values, width=1)
+                print(f"Average score: {best_trials[i].score}")
                 self.evaluate_model(False, False, best_hyparam[i].values)
                 print()
             sys.stdout = original_stdout

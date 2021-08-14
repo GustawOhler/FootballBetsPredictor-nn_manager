@@ -1,5 +1,5 @@
 import tensorflow as tf
-import kerastuner as kt
+import keras_tuner as kt
 from tensorflow import keras
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.python.keras.regularizers import l2
@@ -7,6 +7,7 @@ from constants import saved_model_weights_base_path, saved_model_based_path
 from nn_manager.common import eval_model_after_learning, plot_metric, save_model
 from nn_manager.metrics import profit_wrapped_in_sqrt_loss, how_many_no_bets, only_best_prob_odds_profit
 from nn_manager.neural_network_manager import NeuralNetworkManager
+from timeit import default_timer as timer
 
 
 class LstmNNChoosingBetsManager(NeuralNetworkManager):
@@ -16,38 +17,36 @@ class LstmNNChoosingBetsManager(NeuralNetworkManager):
             "number_of_gru_units": 16,
             "number_of_hidden_units_input_layer": 32,
             "number_of_addit_hidden_layers": 0,
-            "learning_rate": 0.0003
+            "learning_rate": 0.0003,
+            "gru_regularization_factor": 1e-4,
+            "dropout_rate": 0
         }
         super().__init__(train_set, val_set, should_hyper_tune, test_set)
 
     def create_model(self, hp: kt.HyperParameters = None):
-        # test_factor = 1e-9
-        factor = self.best_params["regularization_factor"] if not self.should_hyper_tune else hp.Float('regularization_factor', 1e-4, 1e-2, step=1e-4)
-        gru_regularization_factor = 1e-4
-        # factor = test_factor
-        test_rate = 0.01
-        # rate = test_rate
-        rate = 0.5
-        gru_dropout_rate = 0.1
+        factor = self.best_params["regularization_factor"] if not self.should_hyper_tune else hp.Float('regularization_factor', 1e-5, 1e-2, step=1e-5)
+        gru_regularization_factor = self.best_params["gru_regularization_factor"] if not self.should_hyper_tune else \
+            hp.Float('gru_regularization_factor', 1e-5, 1e-2, step=1e-5)
+        recurrent_regulizer = self.best_params["gru_regularization_factor"] if not self.should_hyper_tune else \
+            hp.Float('gru_reccurent_regularization_factor', 1e-5, 1e-3, step=1e-5)
         number_of_gru_units = self.best_params["number_of_gru_units"] if not self.should_hyper_tune else hp.Choice('number_of_gru_units', [1, 2, 4, 8, 16])
-        first_hidden_units = self.best_params["number_of_hidden_units_input_layer"] if not self.should_hyper_tune else hp.Int(
-            'number_of_hidden_units_input_layer', 4, 32, step=4)
+        first_hidden_units = self.best_params["number_of_hidden_units_input_layer"] if not self.should_hyper_tune else hp.Choice(
+            'number_of_hidden_units_input_layer', [2, 4, 6, 8, 16, 32, 64])
         n_hidden_layers = self.best_params["number_of_addit_hidden_layers"] if not self.should_hyper_tune else hp.Int('number_of_addit_hidden_layers', 0, 3)
-        learning_rate = self.best_params["learning_rate"] if not self.should_hyper_tune else hp.Float('learning_rate', 1e-5, 1e-3, step=1e-5)
-
-        # tf.compat.v1.disable_eager_execution()
+        learning_rate = self.best_params["learning_rate"] if not self.should_hyper_tune else hp.Float('learning_rate', 1e-6, 1e-3, step=1e-6)
+        dropout_rate = self.best_params["dropout_rate"] if not self.should_hyper_tune else hp.Float('dropout_rate', 0, 0.65, step=0.025)
 
         home_input = tf.keras.layers.Input((self.x_train[0].shape[1], self.x_train[0].shape[2],))
         home_rnn = tf.keras.layers.LSTM(number_of_gru_units,
                                              kernel_regularizer=l2(gru_regularization_factor),
                                              bias_regularizer=l2(gru_regularization_factor),
-                                             recurrent_regularizer=l2(gru_regularization_factor/10))(home_input)
+                                             recurrent_regularizer=l2(recurrent_regulizer))(home_input)
 
         away_input = tf.keras.layers.Input((self.x_train[1].shape[1], self.x_train[1].shape[2],))
         away_model = tf.keras.layers.LSTM(number_of_gru_units,
                                                kernel_regularizer=l2(gru_regularization_factor),
                                                bias_regularizer=l2(gru_regularization_factor),
-                                               recurrent_regularizer=l2(gru_regularization_factor/10))(away_input)
+                                               recurrent_regularizer=l2(recurrent_regulizer))(away_input)
 
         rest_of_input = tf.keras.layers.Input((self.x_train[2].shape[1],))
         # main_model = tf.keras.models.Sequential()
@@ -56,16 +55,20 @@ class LstmNNChoosingBetsManager(NeuralNetworkManager):
             away_model,
             rest_of_input
         ])
-        # main_hidden = keras.layers.Dropout(0.3)(all_merged)
+        main_hidden = keras.layers.Dropout(dropout_rate)(all_merged)
         main_hidden = keras.layers.Dense(first_hidden_units, activation='relu',
                                           kernel_regularizer=l2(factor),
                                           bias_regularizer=l2(factor),
-                                          kernel_initializer=tf.keras.initializers.he_normal())(all_merged)
+                                          kernel_initializer=tf.keras.initializers.he_normal())(main_hidden)
         for i in range(n_hidden_layers):
-            main_hidden = keras.layers.Dense(hp.Int(f'number_of_hidden_units_{i}_layer', 4, 16, step=4,
-                                                    parent_name='number_of_addit_hidden_layers',
-                                                    parent_values=list(range(i + 1, n_hidden_layers + 1))
-                                                    ), activation='relu',
+            neurons_quantity = self.best_params["n_of_neurons"][i] if not self.should_hyper_tune else hp.Choice(f'number_of_neurons_{i}_layer',
+                                                                                                                [2, 4, 6, 8, 16, 32, 64],
+                                                                                                                parent_name='number_of_addit_hidden_layers',
+                                                                                                                parent_values=list(
+                                                                                                                    range(i + 1, n_hidden_layers + 1))
+                                                                                                                )
+            main_hidden = keras.layers.Dropout(dropout_rate)(main_hidden)
+            main_hidden = keras.layers.Dense(neurons_quantity, activation='relu',
                                              kernel_regularizer=l2(factor),
                                              bias_regularizer=l2(factor),
                                              kernel_initializer=tf.keras.initializers.he_normal())(main_hidden)
@@ -79,8 +82,9 @@ class LstmNNChoosingBetsManager(NeuralNetworkManager):
         return main_model
 
     def perform_model_learning(self, verbose=True):
-        self.history = self.model.fit(x=[self.x_train[0], self.x_train[1], self.x_train[2]], y=self.y_train, epochs=100,
-                                      batch_size=128,
+        self.history = self.model.fit(x=[self.x_train[0], self.x_train[1], self.x_train[2]], y=self.y_train, epochs=25,
+                                      batch_size=512,
+                                      validation_batch_size=self.y_train.shape[0],
                                       verbose=1 if verbose is True else 0,
                                       shuffle=False,
                                       validation_data=([self.x_val[0], self.x_val[1], self.x_val[2]], self.y_val),
@@ -99,13 +103,15 @@ class LstmNNChoosingBetsManager(NeuralNetworkManager):
     def hyper_tune_model(self):
         tuner = kt.BayesianOptimization(self.create_model,
                                         objective=kt.Objective('val_profit', 'max'),
-                                        max_trials=35,
+                                        max_trials=75,
                                         executions_per_trial=3,
+                                        num_initial_points=25,
                                         directory='.\\hypertuning',
                                         project_name=self.__class__.__name__,
-                                        overwrite=True)
-        tuner.search(x=[self.x_train[0], self.x_train[1], self.x_train[2]], y=self.y_train, epochs=250, batch_size=128, verbose=2,
-                     callbacks=[EarlyStopping(patience=60, monitor='val_profit', mode='max', verbose=1)],
+                                        overwrite=False)
+        tuner.search(x=[self.x_train[0], self.x_train[1], self.x_train[2]], y=self.y_train, epochs=650, batch_size=512, verbose=2,
+                     validation_batch_size=self.y_train.shape[0],
+                     callbacks=[EarlyStopping(patience=50, monitor='val_loss', mode='min', verbose=1, min_delta=0.0001)],
                      validation_data=([self.x_val[0], self.x_val[1], self.x_val[2]], self.y_val))
 
         self.print_summary_after_tuning(tuner, 10)

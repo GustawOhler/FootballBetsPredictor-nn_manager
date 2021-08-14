@@ -1,5 +1,5 @@
 import tensorflow as tf
-import kerastuner as kt
+import keras_tuner as kt
 from tensorflow import keras
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.python.keras.regularizers import l2
@@ -23,14 +23,15 @@ class GruNNPredictingMatchesManager(NeuralNetworkManager):
             "gru_regularization_factor": 1e-4,
             "dropout_rate": 0.25
         }
-        self.best_params = {'confidence_threshold': 0.1,
-         'dropout_rate': 0.25,
-         'gru_regularization_factor': 0.0007900000000000001,
-         'learning_rate': 0.0009999999999999998,
-         'number_of_addit_hidden_layers': 0,
-         'number_of_gru_units': 16,
-         'number_of_hidden_units_input_layer': 64,
-         'regularization_factor': 1e-05}
+        self.best_params = {
+            'confidence_threshold': 0.1,
+            'dropout_rate': 0.25,
+            'gru_regularization_factor': 0.0007900000000000001,
+            'learning_rate': 0.0009999999999999998,
+            'number_of_addit_hidden_layers': 0,
+            'number_of_gru_units': 16,
+            'number_of_hidden_units_input_layer': 64,
+            'regularization_factor': 1e-05}
         super().__init__(train_set, val_set, should_hyper_tune, test_set)
 
     def create_model(self, hp: kt.HyperParameters = None):
@@ -53,15 +54,15 @@ class GruNNPredictingMatchesManager(NeuralNetworkManager):
 
         home_input = tf.keras.layers.Input((self.x_train[0].shape[1], self.x_train[0].shape[2],))
         home_rnn = tf.keras.layers.GRU(number_of_gru_units,
-                                             kernel_regularizer=l2(gru_regularization_factor),
-                                             bias_regularizer=l2(gru_regularization_factor),
-                                             recurrent_regularizer=l2(gru_regularization_factor / 3))(home_input)
+                                       kernel_regularizer=l2(gru_regularization_factor),
+                                       bias_regularizer=l2(gru_regularization_factor),
+                                       recurrent_regularizer=l2(gru_regularization_factor / 3))(home_input)
 
         away_input = tf.keras.layers.Input((self.x_train[1].shape[1], self.x_train[1].shape[2],))
         away_model = tf.keras.layers.GRU(number_of_gru_units,
-                                               kernel_regularizer=l2(gru_regularization_factor),
-                                               bias_regularizer=l2(gru_regularization_factor),
-                                               recurrent_regularizer=l2(gru_regularization_factor / 3))(away_input)
+                                         kernel_regularizer=l2(gru_regularization_factor),
+                                         bias_regularizer=l2(gru_regularization_factor),
+                                         recurrent_regularizer=l2(gru_regularization_factor / 3))(away_input)
 
         rest_of_input = tf.keras.layers.Input((self.x_train[2].shape[1],))
         all_merged = tf.keras.layers.Concatenate()([
@@ -71,9 +72,9 @@ class GruNNPredictingMatchesManager(NeuralNetworkManager):
         ])
         main_hidden = keras.layers.Dropout(dropout_rate)(all_merged)
         main_hidden = keras.layers.Dense(first_hidden_units, activation='relu',
-                                          kernel_regularizer=l2(factor),
-                                          bias_regularizer=l2(factor),
-                                          kernel_initializer=tf.keras.initializers.he_normal())(main_hidden)
+                                         kernel_regularizer=l2(factor),
+                                         bias_regularizer=l2(factor),
+                                         kernel_initializer=tf.keras.initializers.he_normal())(main_hidden)
         for i in range(n_hidden_layers):
             neurons_quantity = self.best_params["n_of_neurons"][i] if not self.should_hyper_tune else hp.Choice(f'number_of_neurons_{i}_layer',
                                                                                                                 [2, 4, 6, 8, 16, 32, 64],
@@ -122,13 +123,13 @@ class GruNNPredictingMatchesManager(NeuralNetworkManager):
         #                                 project_name=self.__class__.__name__,
         #                                 overwrite=False)
         tuner = kt.BayesianOptimization(self.create_model,
-                                                objective=kt.Objective('val_profit', 'max'),
-                                                max_trials=10,
-                                                executions_per_trial=1,
-                                                num_initial_points=5,
-                                                directory='.\\hypertuning',
-                                                project_name='test',
-                                                overwrite=True)
+                                        objective=kt.Objective('val_profit', 'max'),
+                                        max_trials=10,
+                                        executions_per_trial=1,
+                                        num_initial_points=5,
+                                        directory='.\\hypertuning',
+                                        project_name='test',
+                                        overwrite=True)
 
         tuner.search(x=[self.x_train[0], self.x_train[1], self.x_train[2]], y=self.y_train, epochs=600, batch_size=128, verbose=2, validation_batch_size=16,
                      callbacks=[EarlyStopping(patience=75, monitor='val_loss', mode='min', verbose=1)],

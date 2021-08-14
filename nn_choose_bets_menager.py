@@ -1,7 +1,7 @@
 import pprint
 
 import tensorflow as tf
-import kerastuner as kt
+import keras_tuner as kt
 from tensorflow import keras
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.python.keras.regularizers import l2
