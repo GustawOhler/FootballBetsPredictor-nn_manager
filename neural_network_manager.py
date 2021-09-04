@@ -7,7 +7,7 @@ from nn_manager.common import eval_model_after_learning_within_threshold, plot_m
 
 
 class NeuralNetworkManager(ABC):
-    def __init__(self, train_set, val_set, should_hyper_tune, test_set):
+    def __init__(self, train_set, val_set, should_hyper_tune, test_set, **kwargs):
         keras.backend.clear_session()
         self.x_train = train_set[0]
         self.y_train = train_set[1]
@@ -61,18 +61,22 @@ class NeuralNetworkManager(ABC):
     def get_path_for_saving_weights(self):
         return saved_model_weights_base_path + self.__class__.__name__ + '/checkpoint'
 
-    def print_summary_after_tuning(self, tuner, how_much_models):
+    def print_summary_after_tuning(self, tuner, how_much_models, path=None):
         original_stdout = sys.stdout
-        with open(f'./hypertuning/{self.__class__.__name__}/summary.txt', 'w') as summary_file:
+        if path is not None:
+            file_path = path + '/summary.txt'
+        else:
+            file_path = f'./hypertuning/{self.__class__.__name__}/summary.txt'
+        with open(file_path, 'w') as summary_file:
             sys.stdout = summary_file
-            best_hyparam = tuner.get_best_hyperparameters(how_much_models)
+            # best_hyparam = tuner.get_best_hyperparameters(how_much_models)
             best_trials = tuner.oracle.get_best_trials(how_much_models)
-            for i, model in enumerate(tuner.get_best_models(how_much_models)):
-                self.model = model
+            for i, trial in enumerate(best_trials):
+                # self.model = model
                 print(f"Model {i + 1}:")
-                pprint.pprint(best_hyparam[i].values, width=1)
-                print(f"Average score: {best_trials[i].score}")
-                self.evaluate_model(False, False, best_hyparam[i].values)
+                pprint.pprint(trial.hyperparameters.values, width=1)
+                print(f"Average score: {trial.score}")
+                # self.evaluate_model(False, False, best_hyparam[i].values)
                 print()
             sys.stdout = original_stdout
 

@@ -5,6 +5,7 @@ from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.python.keras.regularizers import l2
 from constants import saved_model_weights_base_path
 from nn_manager.common import eval_model_after_learning_within_threshold, plot_metric, save_model
+from nn_manager.custom_bayesian_tuner import CustomBayesianSearch
 from nn_manager.metrics import categorical_crossentropy_with_bets, categorical_acc_with_bets, odds_profit_within_threshold
 from nn_manager.neural_network_manager import NeuralNetworkManager
 
@@ -25,15 +26,19 @@ class NNPredictingMatchesManager(NeuralNetworkManager):
         super().__init__(train_set, val_set, should_hyper_tune, test_set)
 
     def create_model(self, hp: kt.HyperParameters = None):
-        factor = self.best_params["regularization_factor"] if not self.should_hyper_tune else hp.Float('regularization_factor', 1e-4, 1e-2, step=1e-4)
-        input_dropout_rate = self.best_params["input_dropout_rate"] if not self.should_hyper_tune else hp.Float('dropout_rate', 0, 0.6, step=0.05)
-        rate = self.best_params["dropout_rate"] if not self.should_hyper_tune else hp.Float('dropout_rate', 0, 0.6, step=0.05)
-        layers_quantity = self.best_params["layers_quantity"] if not self.should_hyper_tune else hp.Int('layers_quantity', 1, 6)
+        factor = self.best_params["regularization_factor"] if not self.should_hyper_tune else hp.Float('regularization_factor', 0, 1e-2, step=1e-10)
+        input_dropout_rate = self.best_params["input_dropout_rate"] if not self.should_hyper_tune else hp.Float('dropout_rate', 0, 0.65, step=0.025)
+        rate = self.best_params["dropout_rate"] if not self.should_hyper_tune else hp.Float('dropout_rate', 0, 0.65, step=0.025)
+        max_layers_quantity = 6
+        layers_quantity = self.best_params["layers_quantity"] if not self.should_hyper_tune else hp.Int('layers_quantity', 1, max_layers_quantity)
         confidence_threshold = self.best_params["confidence_threshold"] if not self.should_hyper_tune else hp.Float('confidence_threshold', 0.005, 0.15,
                                                                                                                     step=0.005)
-        learning_rate = self.best_params["learning_rate"] if not self.should_hyper_tune else hp.Float('learning_rate', 1e-5, 1e-3, step=1e-5)
+        learning_rate = self.best_params["learning_rate"] if not self.should_hyper_tune else hp.Float('learning_rate', 1e-6, 1e-3, step=1e-6)
+
         use_bn_for_input = self.best_params["use_bn_for_input"] if not self.should_hyper_tune else hp.Boolean('use_bn_for_input')
         use_bn_for_rest = self.best_params["use_bn_for_rest"] if not self.should_hyper_tune else hp.Boolean('use_bn_for_rest')
+
+        regularize_output_layer = self.best_params["regularize_output_layer"] if not self.should_hyper_tune else hp.Boolean('regularize_output_layer')
 
         model = tf.keras.models.Sequential()
         if use_bn_for_input:
@@ -41,22 +46,24 @@ class NNPredictingMatchesManager(NeuralNetworkManager):
         model.add(keras.layers.Dropout(input_dropout_rate))
 
         for i in range(layers_quantity):
-            neurons_quantity = self.best_params["n_of_neurons"][i] if not self.should_hyper_tune else hp.Choice(f'number_of_neurons_{i}_layer',
-                                                                                                                [8, 16, 32, 64, 128, 256, 512],
-                                                                                                                parent_name='layers_quantity',
-                                                                                                                parent_values=list(
-                                                                                                                    range(i + 1, layers_quantity + 1))
-                                                                                                                )
+            if not self.should_hyper_tune:
+                neurons_quantity = self.best_params[f'number_of_neurons_{i}_layer']
+            else:
+                with hp.conditional_scope('layers_quantity', parent_values=list(range(i + 1, max_layers_quantity + 1))):
+                    neurons_quantity = hp.Choice(f'number_of_neurons_{i}_layer', [8, 16, 32, 64, 128, 256, 512])
             model.add(keras.layers.Dense(neurons_quantity, activation='relu',
                                          # activity_regularizer=l2(factor),
                                          kernel_regularizer=l2(factor),
+                                         bias_regularizer=l2(factor),
                                          kernel_initializer=tf.keras.initializers.he_normal()))
-            if i < layers_quantity-1:
-                if use_bn_for_rest:
-                    model.add(keras.layers.BatchNormalization())
+            if use_bn_for_rest:
+                model.add(keras.layers.BatchNormalization())
+            if i < layers_quantity - 1 or regularize_output_layer:
                 model.add(keras.layers.Dropout(rate))
 
-        model.add(keras.layers.Dense(3, activation='softmax', kernel_initializer=tf.keras.initializers.he_normal()))
+        model.add(keras.layers.Dense(3, activation='softmax', kernel_initializer=tf.keras.initializers.he_normal(),
+                                     kernel_regularizer=l2(factor if regularize_output_layer else 0),
+                                     bias_regularizer=l2(factor if regularize_output_layer else 0)))
         model.compile(loss=categorical_crossentropy_with_bets,
                       optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
                       metrics=[categorical_acc_with_bets, odds_profit_within_threshold(confidence_threshold)])
@@ -77,19 +84,19 @@ class NNPredictingMatchesManager(NeuralNetworkManager):
         save_model(self.model, self.get_path_for_saving_model())
 
     def hyper_tune_model(self):
-        tuner = kt.BayesianOptimization(self.create_model,
-                                        objective=kt.Objective('val_profit', 'max'),
-                                        max_trials=40,
-                                        executions_per_trial=4,
-                                        directory='.\\hypertuning',
-                                        project_name=self.__class__.__name__,
-                                        overwrite=False,
-                                        num_initial_points=20)
-        tuner.search(x=self.x_train, y=self.y_train, epochs=750, batch_size=128, validation_batch_size=16,
-                     verbose=2, callbacks=[EarlyStopping(patience=100, monitor='val_profit', mode='max', verbose=1)],
-                     validation_data=(self.x_val, self.y_val))
+        tuner = CustomBayesianSearch(self.create_model,
+                                     objective=kt.Objective('val_profit', 'max'),
+                                     max_trials=300,
+                                     num_initial_points=150,
+                                     executions_per_trial=5,
+                                     directory='.\\hypertuning',
+                                     project_name=self.__class__.__name__ + '_test2',
+                                     overwrite=False,
+                                     beta=3.5)
+        tuner.search(batch_size=256, epochs=1000, shuffle=True, verbose=2,
+                     callbacks=[EarlyStopping(patience=100, monitor='val_loss', mode='min', verbose=1, min_delta=0.0005)])
 
-        self.print_summary_after_tuning(tuner, 10)
+        self.print_summary_after_tuning(tuner, 10, f'./hypertuning/{self.__class__.__name__}_test2')
 
         return tuner
 
