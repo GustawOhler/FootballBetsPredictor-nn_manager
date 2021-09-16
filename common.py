@@ -35,6 +35,27 @@ def plot_metric(history, metric):
     plt.show()
 
 
+def plot_many_metrics(history, metrics: list, print_only_validation:bool, do_profit_line: bool):
+    legend_array = []
+    for metric in metrics:
+        train_metrics = history.history[metric]
+        val_metrics = history.history['val_' + metric]
+        epochs = range(1, len(train_metrics) + 1)
+        if not print_only_validation:
+            plt.plot(epochs, train_metrics)
+        plt.plot(epochs, val_metrics)
+        plt.title('Training and validation')
+        if not print_only_validation:
+            legend_array.append("train_" + metric)
+        legend_array.append('val_' + metric)
+    plt.xlabel("Epochs")
+    plt.legend(legend_array, loc=4, fontsize='xx-small')
+    if do_profit_line:
+        plt.axhline(y=0, color='r')
+    plt.show()
+    plt.savefig('./requested_metrics.png', dpi=900)
+
+
 def show_winnings(predicted_classes, actual_classes, odds):
     winnings = 0.0
     for i in range(predicted_classes.shape[0]):

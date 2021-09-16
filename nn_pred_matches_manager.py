@@ -6,28 +6,44 @@ from tensorflow.python.keras.regularizers import l2
 from constants import saved_model_weights_base_path
 from nn_manager.common import eval_model_after_learning_within_threshold, plot_metric, save_model
 from nn_manager.custom_bayesian_tuner import CustomBayesianSearch
-from nn_manager.metrics import categorical_crossentropy_with_bets, categorical_acc_with_bets, odds_profit_within_threshold
+from nn_manager.metrics import categorical_crossentropy_with_bets, categorical_acc_with_bets, odds_profit_with_biggest_gap_over_threshold
 from nn_manager.neural_network_manager import NeuralNetworkManager
 
 
 class NNPredictingMatchesManager(NeuralNetworkManager):
-    def __init__(self, train_set, val_set, should_hyper_tune, test_set):
+    def __init__(self, train_set, val_set, should_hyper_tune, test_set, **kwargs):
         self.best_params = {
-            "regularization_factor": 0.002,
-            "dropout_rate": 0.4,
-            "layers_quantity": 3,
-            "n_of_neurons": [256, 128, 64],
-            "confidence_threshold": 0.03,
-            "learning_rate": 0.00025,
-            "input_dropout_rate": 0.4,
-            "use_bn_for_input": True,
-            "use_bn_for_rest": False
+            'confidence_threshold': 0.049999999999999996,
+            'dataset': 'DatasetWithSeparatedMatchesCreator',
+            'dropout_rate': 0.275,
+            'layers_quantity': 1,
+            'learning_rate': 0.000933,
+            'number_of_neurons_0_layer': 32,
+            'regularization_factor': 0.0079762501,
+            'regularize_output_layer': False,
+            'use_bn_for_input': True,
+            'use_bn_for_rest': True
         }
+        # self.best_params = {
+        #     'confidence_threshold': 0.05,
+        #     'dropout_rate': 0.15,
+        #     'input_dropout_rate': 0.2,
+        #     'layers_quantity': 3,
+        #     'learning_rate': 3.5999999999999994e-05,
+        #     'number_of_neurons_0_layer': 32,
+        #     'number_of_neurons_1_layer': 16,
+        #     'number_of_neurons_2_layer': 16,
+        #     'regularization_factor': 0.0034858521000000003,
+        #     'regularize_output_layer': False,
+        #     'use_bn_for_input': True,
+        #     'use_bn_for_rest': True
+        # }
+        self.best_params.update(kwargs)
         super().__init__(train_set, val_set, should_hyper_tune, test_set)
 
     def create_model(self, hp: kt.HyperParameters = None):
         factor = self.best_params["regularization_factor"] if not self.should_hyper_tune else hp.Float('regularization_factor', 0, 1e-2, step=1e-10)
-        input_dropout_rate = self.best_params["input_dropout_rate"] if not self.should_hyper_tune else hp.Float('dropout_rate', 0, 0.65, step=0.025)
+        input_dropout_rate = self.best_params["dropout_rate"] if not self.should_hyper_tune else hp.Float('dropout_rate', 0, 0.65, step=0.025)
         rate = self.best_params["dropout_rate"] if not self.should_hyper_tune else hp.Float('dropout_rate', 0, 0.65, step=0.025)
         max_layers_quantity = 6
         layers_quantity = self.best_params["layers_quantity"] if not self.should_hyper_tune else hp.Int('layers_quantity', 1, max_layers_quantity)
@@ -66,22 +82,24 @@ class NNPredictingMatchesManager(NeuralNetworkManager):
                                      bias_regularizer=l2(factor if regularize_output_layer else 0)))
         model.compile(loss=categorical_crossentropy_with_bets,
                       optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
-                      metrics=[categorical_acc_with_bets, odds_profit_within_threshold(confidence_threshold)])
+                      metrics=[categorical_acc_with_bets, odds_profit_with_biggest_gap_over_threshold(confidence_threshold)])
         return model
 
-    def perform_model_learning(self):
-        self.history = self.model.fit(self.x_train, self.y_train, epochs=750, batch_size=256, verbose=1, shuffle=False, validation_data=(self.x_val,
-                                                                                                                                         self.y_val),
-                                      validation_batch_size=16,
-                                      callbacks=[EarlyStopping(patience=125, monitor='val_loss', mode='min', verbose=1),
+    def perform_model_learning(self, verbose=True):
+        self.history = self.model.fit(self.x_train, self.y_train, epochs=1000, batch_size=256,
+                                      verbose=1 if verbose is True else 0,
+                                      shuffle=False, validation_data=(self.x_val, self.y_val),
+                                      validation_batch_size=self.y_val.shape[0],
+                                      callbacks=[EarlyStopping(patience=100, monitor='val_loss', mode='min',
+                                                               verbose=1 if verbose is True else 0, min_delta=0.001),
                                                  ModelCheckpoint(self.get_path_for_saving_weights(), save_best_only=True, save_weights_only=True,
-                                                                 monitor='val_profit', mode='max', verbose=1)]
+                                                                 monitor='val_profit', mode='max', verbose=1 if verbose is True else 0)]
                                       # callbacks=[TensorBoard(write_grads=True, histogram_freq=1, log_dir='.\\tf_logs', write_graph=True)]
                                       # callbacks=[WeightChangeMonitor()]
                                       )
 
         self.model.load_weights(self.get_path_for_saving_weights())
-        save_model(self.model, self.get_path_for_saving_model())
+        # save_model(self.model, self.get_path_for_saving_model())
 
     def hyper_tune_model(self):
         tuner = CustomBayesianSearch(self.create_model,

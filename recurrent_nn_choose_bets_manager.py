@@ -4,16 +4,17 @@ import nn_manager.metrics
 from tensorflow import keras
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.python.keras.regularizers import l2
-from constants import saved_model_weights_base_path, saved_model_based_path
+from constants import saved_model_weights_base_path, saved_model_based_path, ChoosingBetsStrategy
 from nn_manager.common import eval_model_after_learning, plot_metric, save_model
 from nn_manager.custom_bayesian_tuner import CustomBayesianSearch
-from nn_manager.metrics import profit_wrapped_in_sqrt_loss, how_many_no_bets, only_best_prob_odds_profit, one_bet_profit_wrapped_in_sqrt_loss, profit_and_loss_tuning
+from nn_manager.metrics import how_many_no_bets, only_best_prob_odds_profit, profit_and_loss_tuning, all_odds_profit, choose_loss_based_on_strategy, \
+    profit_metric_based_on_strategy
 from nn_manager.neural_network_manager import NeuralNetworkManager
 from nn_manager.no_bet_early_stopping import NoBetEarlyStopping
 
 
 class RecurrentNNChoosingBetsManager(NeuralNetworkManager):
-    def __init__(self, train_set, val_set, should_hyper_tune, test_set = None, loss_function_variant=0):
+    def __init__(self, train_set, val_set, should_hyper_tune, test_set=None, **kwargs):
         self.old_best = {
             "regularization_factor": 0.001,
             "number_of_gru_units": 16,
@@ -35,21 +36,24 @@ class RecurrentNNChoosingBetsManager(NeuralNetworkManager):
             'number_of_neurons_1_layer': 16,
             'number_of_neurons_2_layer': 8,
             'recurrent_type': 'SimpleRNN',
-            'regularization_factor': 0.0001,
-            'loss_function_variant': loss_function_variant
+            'regularization_factor': 0.0001
         }
-        self.best_params={'dropout_rate': 0.275,
- 'gru_reccurent_regularization_factor': 0.00051439,
- 'gru_regularization_factor': 6.144000000000001e-05,
- 'learning_rate': 0.00018,
- 'number_of_addit_hidden_layers': 2,
- 'number_of_gru_units': 16,
- 'number_of_neurons_0_layer': 512,
- 'number_of_neurons_1_layer': 4,
- 'recurrent_type': 'LSTM',
- 'regularization_factor': 0.00233147,
- 'use_bn_for_input': True,
- 'use_bn_for_rest': True}
+        self.best_params = {'dropout_rate': 0.275,
+                            'gru_reccurent_regularization_factor': 0.00051439,
+                            'gru_regularization_factor': 6.144000000000001e-05,
+                            'learning_rate': 0.00018,
+                            'number_of_addit_hidden_layers': 2,
+                            'number_of_gru_units': 16,
+                            'number_of_neurons_0_layer': 512,
+                            'number_of_neurons_1_layer': 4,
+                            'recurrent_type': 'LSTM',
+                            'regularization_factor': 0.00233147,
+                            'use_bn_for_input': True,
+                            'use_bn_for_rest': True,
+                            'strategy': ChoosingBetsStrategy.AllOnBestResult,
+                            'should_add_expotential': True
+                            }
+        self.best_params.update(kwargs)
         super().__init__(train_set, val_set, should_hyper_tune, test_set)
 
     def create_model(self, hp: kt.HyperParameters = None):
@@ -75,21 +79,21 @@ class RecurrentNNChoosingBetsManager(NeuralNetworkManager):
 
         home_input = tf.keras.layers.Input((self.x_train[0].shape[1], self.x_train[0].shape[2],))
         home_rnn = recurrent_type_callable(number_of_gru_units,
+                                           kernel_regularizer=l2(gru_regularization_factor),
+                                           bias_regularizer=l2(gru_regularization_factor),
+                                           recurrent_regularizer=l2(recurrent_regulizer)
+                                           # dropout=0.2,
+                                           # recurrent_dropout=0.3
+                                           )(home_input)
+
+        away_input = tf.keras.layers.Input((self.x_train[1].shape[1], self.x_train[1].shape[2],))
+        away_model = recurrent_type_callable(number_of_gru_units,
                                              kernel_regularizer=l2(gru_regularization_factor),
                                              bias_regularizer=l2(gru_regularization_factor),
                                              recurrent_regularizer=l2(recurrent_regulizer)
                                              # dropout=0.2,
                                              # recurrent_dropout=0.3
-                                             )(home_input)
-
-        away_input = tf.keras.layers.Input((self.x_train[1].shape[1], self.x_train[1].shape[2],))
-        away_model = recurrent_type_callable(number_of_gru_units,
-                                               kernel_regularizer=l2(gru_regularization_factor),
-                                               bias_regularizer=l2(gru_regularization_factor),
-                                               recurrent_regularizer=l2(recurrent_regulizer)
-                                               # dropout=0.2,
-                                               # recurrent_dropout=0.3
-                                               )(away_input)
+                                             )(away_input)
 
         rest_of_input = tf.keras.layers.Input((self.x_train[2].shape[1],))
         # main_model = tf.keras.models.Sequential()
@@ -110,11 +114,12 @@ class RecurrentNNChoosingBetsManager(NeuralNetworkManager):
         for i in range(1, n_hidden_layers):
             quantity_possibilities = [4, 6, 8, 16, 32, 64, 128, 256]
             neurons_quantity = self.best_params[f'number_of_neurons_{i}_layer'] if not self.should_hyper_tune else hp.Choice(f'number_of_neurons_{i}_layer',
-                                                                                                                quantity_possibilities,
-                                                                                                                parent_name='number_of_addit_hidden_layers',
-                                                                                                                parent_values=list(
-                                                                                                                    range(i + 1, max_layers_quantity + 1))
-                                                                                                                )
+                                                                                                                             quantity_possibilities,
+                                                                                                                             parent_name='number_of_addit_hidden_layers',
+                                                                                                                             parent_values=list(
+                                                                                                                                 range(i + 1,
+                                                                                                                                       max_layers_quantity + 1))
+                                                                                                                             )
             if use_bn_for_rest:
                 main_hidden = keras.layers.BatchNormalization()(main_hidden)
             main_hidden = keras.layers.Dropout(dropout_rate)(main_hidden)
@@ -126,20 +131,20 @@ class RecurrentNNChoosingBetsManager(NeuralNetworkManager):
         main_model = keras.models.Model(inputs=[home_input, away_input, rest_of_input], outputs=main_hidden)
 
         opt = keras.optimizers.Adam(learning_rate=learning_rate)
-        main_model.compile(loss=one_bet_profit_wrapped_in_sqrt_loss,
+        main_model.compile(loss=choose_loss_based_on_strategy(self.best_params['strategy'], True, self.best_params['should_add_expotential']),
                            optimizer=opt,
-                           metrics=[how_many_no_bets, only_best_prob_odds_profit()])
+                           metrics=[how_many_no_bets, profit_metric_based_on_strategy(self.best_params['strategy'])])
         return main_model
 
     def perform_model_learning(self, verbose=True):
         self.history = self.model.fit(x=[self.x_train[0], self.x_train[1], self.x_train[2]], y=self.y_train, epochs=1000,
                                       batch_size=256,
                                       verbose=1 if verbose else 0,
-                                      shuffle=True,
+                                      shuffle=False,
                                       validation_data=([self.x_val[0], self.x_val[1], self.x_val[2]], self.y_val),
                                       validation_batch_size=self.y_val.shape[0],
                                       callbacks=[
-                                          EarlyStopping(patience=100, monitor='val_loss', mode='min', verbose=1 if verbose else 0),
+                                          EarlyStopping(patience=100, monitor='val_loss', mode='min', verbose=1 if verbose else 0, min_delta=0.001),
                                           NoBetEarlyStopping(patience=75),
                                           ModelCheckpoint(self.get_path_for_saving_weights(), save_best_only=True, save_weights_only=True,
                                                           monitor='val_profit', mode='max', verbose=1 if verbose else 0)]
@@ -180,3 +185,43 @@ class RecurrentNNChoosingBetsManager(NeuralNetworkManager):
     #
     #     plot_metric(self.history, 'loss')
     #     plot_metric(self.history, 'profit')
+    #
+    # def build_model(self):
+    #     dropout_rate = 0.3
+    #     regularization_factor = 1e-3
+    #     learning_rate = 1e-4
+    #     confidence_threshold = 0.05
+    #     rnn_regularization_factor = 1e-5
+    #     rnn_recurrent_regularization_factor = 1e-6
+    #
+    #     home_input = tf.keras.layers.Input((self.x_train[0].shape[1], self.x_train[0].shape[2],))
+    #     home_rnn = tf.keras.layers.RNN(4,  kernel_regularizer=l2(rnn_regularization_factor),
+    #                                        bias_regularizer=l2(rnn_regularization_factor),
+    #                                        recurrent_regularizer=l2(rnn_recurrent_regularization_factor)
+    #                                        )(home_input)
+    #
+    #     away_input = tf.keras.layers.Input((self.x_train[1].shape[1], self.x_train[1].shape[2],))
+    #     away_model = tf.keras.layers.RNN(4,  kernel_regularizer=l2(rnn_regularization_factor),
+    #                                          bias_regularizer=l2(rnn_regularization_factor),
+    #                                          recurrent_regularizer=l2(rnn_recurrent_regularization_factor)
+    #                                          )(away_input)
+    #
+    #     rest_of_input = tf.keras.layers.Input((self.x_train[2].shape[1],))
+    #     all_merged = tf.keras.layers.Concatenate()([
+    #         home_rnn,
+    #         away_model,
+    #         rest_of_input
+    #     ])
+    #     model = tf.keras.layers.BatchNormalization()(all_merged)
+    #     model = tf.keras.layers.Dropout(dropout_rate)(model)
+    #     model = tf.keras.layers.Dense(64, activation='relu',
+    #                                  kernel_regularizer=l2(regularization_factor),
+    #                                  bias_regularizer=l2(regularization_factor),
+    #                                  kernel_initializer=tf.keras.initializers.he_normal())(model)
+    #     model = tf.keras.layers.Dense(3, activation='softmax', kernel_initializer=tf.keras.initializers.he_normal(),
+    #                                  kernel_regularizer=l2(regularization_factor),
+    #                                  bias_regularizer=l2(regularization_factor))(model)
+    #     model.compile(loss=categorical_crossentropy_with_bets,
+    #                   optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
+    #                   metrics=[categorical_acc_with_bets, odds_profit_within_threshold(confidence_threshold)])
+    #     return model

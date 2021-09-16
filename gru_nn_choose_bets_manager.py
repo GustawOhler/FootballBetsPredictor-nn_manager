@@ -3,9 +3,9 @@ import keras_tuner as kt
 from tensorflow import keras
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.python.keras.regularizers import l2
-from constants import saved_model_weights_base_path, saved_model_based_path
+from constants import saved_model_weights_base_path, saved_model_based_path, ChoosingBetsStrategy
 from nn_manager.common import eval_model_after_learning, plot_metric, save_model
-from nn_manager.metrics import profit_wrapped_in_sqrt_loss, how_many_no_bets, only_best_prob_odds_profit
+from nn_manager.metrics import how_many_no_bets, only_best_prob_odds_profit, choose_loss_based_on_strategy, profit_metric_based_on_strategy
 from nn_manager.neural_network_manager import NeuralNetworkManager
 
 
@@ -28,7 +28,9 @@ class GruNNChoosingBetsManager(NeuralNetworkManager):
             'number_of_gru_units': 1,
             'number_of_hidden_units_input_layer': 64,
             'number_of_neurons_0_layer': 16,
-            'regularization_factor': 0.0
+            'regularization_factor': 0.0,
+            'strategy': ChoosingBetsStrategy.AllOnBestResult,
+            'should_add_expotential': True
         }
         super().__init__(train_set, val_set, should_hyper_tune, test_set)
 
@@ -84,9 +86,9 @@ class GruNNChoosingBetsManager(NeuralNetworkManager):
         main_model = keras.models.Model(inputs=[home_input, away_input, rest_of_input], outputs=main_hidden)
 
         opt = keras.optimizers.Adam(learning_rate=learning_rate)
-        main_model.compile(loss=profit_wrapped_in_sqrt_loss,
-                           optimizer=opt,
-                           metrics=[how_many_no_bets, only_best_prob_odds_profit()])
+        main_model.compile(loss=choose_loss_based_on_strategy(self.best_params['strategy'], True, self.best_params['should_add_expotential']),
+                      optimizer=opt,
+                      metrics=[how_many_no_bets, profit_metric_based_on_strategy()])
         return main_model
 
     def perform_model_learning(self, verbose=True):

@@ -7,7 +7,7 @@ from nn_manager.common import eval_model_after_learning_within_threshold, plot_m
 
 
 class NeuralNetworkManager(ABC):
-    def __init__(self, train_set, val_set, should_hyper_tune, test_set, **kwargs):
+    def __init__(self, train_set, val_set, should_hyper_tune, test_set):
         keras.backend.clear_session()
         self.x_train = train_set[0]
         self.y_train = train_set[1]
@@ -104,3 +104,10 @@ class NeuralNetworkManager(ABC):
             plot_metric(self.history, 'loss')
             plot_metric(self.history, 'categorical_acc_with_bets')
             plot_metric(self.history, 'profit')
+
+#TODO: sprawdzić i dokończyć
+    def fine_tune(self, X, y):
+        fine_tuning_learning_rate = self.best_params["learning_rate"] * 10e-2
+        opt = keras.optimizers.Adam(learning_rate=fine_tuning_learning_rate)
+        self.model.compile(optimizer=opt)
+        self.model.fit(x=[self.x_train[0], self.x_train[1], self.x_train[2]], y=self.y_train, epochs=10)

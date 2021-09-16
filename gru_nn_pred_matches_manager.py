@@ -5,8 +5,8 @@ from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.python.keras.regularizers import l2
 from constants import saved_model_weights_base_path, saved_model_based_path
 from nn_manager.common import eval_model_after_learning, plot_metric, save_model, eval_model_after_learning_within_threshold
-from nn_manager.metrics import profit_wrapped_in_sqrt_loss, how_many_no_bets, only_best_prob_odds_profit, categorical_crossentropy_with_bets, \
-    categorical_acc_with_bets, odds_profit_within_threshold
+from nn_manager.metrics import how_many_no_bets, only_best_prob_odds_profit, categorical_crossentropy_with_bets, \
+    categorical_acc_with_bets, odds_profit_with_biggest_gap_over_threshold
 from nn_manager.neural_network_manager import NeuralNetworkManager
 
 
@@ -93,7 +93,7 @@ class GruNNPredictingMatchesManager(NeuralNetworkManager):
         opt = keras.optimizers.Adam(learning_rate=learning_rate)
         main_model.compile(loss=categorical_crossentropy_with_bets,
                            optimizer=opt,
-                           metrics=[categorical_acc_with_bets, odds_profit_within_threshold(confidence_threshold)])
+                           metrics=[categorical_acc_with_bets, odds_profit_with_biggest_gap_over_threshold(confidence_threshold)])
         return main_model
 
     def perform_model_learning(self, verbose=True):
