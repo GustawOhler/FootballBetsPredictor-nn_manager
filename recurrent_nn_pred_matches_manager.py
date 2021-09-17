@@ -1,5 +1,7 @@
 import tensorflow as tf
 import keras_tuner as kt
+import numpy as np
+from matplotlib import pyplot as plt
 from tensorflow import keras
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.python.keras.regularizers import l2
@@ -14,17 +16,17 @@ from nn_manager.neural_network_manager import NeuralNetworkManager
 class RecurrentNNPredictingMatchesManager(NeuralNetworkManager):
     def __init__(self, train_set, val_set, should_hyper_tune, test_set, **kwargs):
         self.best_params = {
-            'confidence_threshold': 0.05,
-            'dropout_rate': 0.5,
-            'gru_reccurent_regularization_factor': 0.00003,
-            'gru_regularization_factor': 0.0001,
-            'learning_rate': 0.0025,
+            'confidence_threshold': 0.065,
+            'dropout_rate': 0.65,
+            'gru_reccurent_regularization_factor': 0.00031378,
+            'gru_regularization_factor': 0.01,
+            'learning_rate': 0.00249,
             'number_of_addit_hidden_layers': 2,
             'number_of_gru_units': 8,
-            'number_of_neurons_0_layer': 64,
+            'number_of_neurons_0_layer': 16,
             'number_of_neurons_1_layer': 32,
             'recurrent_type': 'GRU',
-            'regularization_factor': 0.00002,
+            'regularization_factor': 0.00219613,
             'use_bn_for_input': True,
             'use_bn_for_rest': True
         }
@@ -140,6 +142,27 @@ class RecurrentNNPredictingMatchesManager(NeuralNetworkManager):
             # print(f'{strategy.value}: {self.get_best_metric_value(metric_name)}')
         # plot_many_metrics(self.history, [en.value for en in PredMatchesStrategy], True, True)
         return strategy_metrics
+
+    def plot_confidence_threshold(self):
+        val_predictions = self.model.predict(self.x_val)
+        val_true = self.y_val
+        test_predictions = self.model.predict(self.x_test)
+        test_true = self.y_test
+        confidence_values = np.linspace(0.001, 0.2, 2000)
+        val_profit = []
+        test_profit = []
+        for confidence in confidence_values:
+            val_profit.append(odds_profit_with_biggest_gap_over_threshold(confidence)(val_true, val_predictions).numpy())
+            test_profit.append(odds_profit_with_biggest_gap_over_threshold(confidence)(test_true, test_predictions).numpy())
+        plt.plot(confidence_values.tolist(), val_profit)
+        plt.plot(confidence_values.tolist(), test_profit)
+        # plt.title('Validation and test)
+        plt.xlabel("Confidence threshold")
+        plt.ylabel("Profit")
+        plt.legend(["Val Profit", 'Test Profit'])
+        plt.axhline(y=0, color='r')
+        # plt.ylim([-0.03, 0.02])
+        plt.show()
 
     def hyper_tune_model(self):
         tuner = CustomBayesianSearch(self.create_model,

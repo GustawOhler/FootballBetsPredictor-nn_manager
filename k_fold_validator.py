@@ -98,7 +98,7 @@ def perform_k_fold_with_different_models():
     rep_k_folder = RepeatedKFold(n_repeats=3, n_splits=10)
     ffnn_dataset = get_whole_dataset(False, DatasetType.BASIC)
     recurrent_dataset = get_whole_dataset(False, DatasetType.SEPARATED_MATCHES)
-    possible_models = {ModelType.CHOOSING_BETS: NNChoosingBetsManager, ModelType.RNN: RecurrentNNChoosingBetsManager}
+    possible_models = {ModelType.RNN: RecurrentNNChoosingBetsManager, ModelType.RNN_pred_matches: RecurrentNNPredictingMatchesManager}
     tracked_metrics = {model_type: {} for model_type in possible_models}
     base_ids = ffnn_dataset['match_id']
     loop_index = 1
