@@ -1,3 +1,4 @@
+import datetime
 import tensorflow as tf
 import keras_tuner as kt
 import numpy as np
@@ -9,7 +10,7 @@ from constants import saved_model_weights_base_path, saved_model_based_path, Pre
 from nn_manager.common import eval_model_after_learning, plot_metric, save_model, eval_model_after_learning_within_threshold, plot_many_metrics
 from nn_manager.custom_bayesian_tuner import CustomBayesianSearch
 from nn_manager.metrics import categorical_crossentropy_with_bets, categorical_acc_with_bets, odds_profit_with_biggest_gap_over_threshold, \
-    get_all_profit_metrics_for_pred_matches
+    get_all_profit_metrics_for_pred_matches, pred_matches_precision, pred_matches_how_many_no_bets
 from nn_manager.neural_network_manager import NeuralNetworkManager
 
 
@@ -20,7 +21,7 @@ class RecurrentNNPredictingMatchesManager(NeuralNetworkManager):
             'dropout_rate': 0.65,
             'gru_reccurent_regularization_factor': 0.00031378,
             'gru_regularization_factor': 0.01,
-            'learning_rate': 0.00249,
+            'learning_rate': 0.004,
             'number_of_addit_hidden_layers': 2,
             'number_of_gru_units': 8,
             'number_of_neurons_0_layer': 16,
@@ -30,6 +31,23 @@ class RecurrentNNPredictingMatchesManager(NeuralNetworkManager):
             'use_bn_for_input': True,
             'use_bn_for_rest': True
         }
+        # self.best_params = {
+        #     'confidence_threshold': 0.07,
+        #     'dropout_rate': 0.5,
+        #     'gru_reccurent_regularization_factor': 1e-4,
+        #     'gru_regularization_factor': 1e-3,
+        #     'learning_rate': 1e-4,
+        #     'number_of_addit_hidden_layers': 3,
+        #     'number_of_gru_units': 8,
+        #     'number_of_neurons_0_layer': 16,
+        #     'number_of_neurons_1_layer': 16,
+        #     'number_of_neurons_2_layer': 4,
+        #     'recurrent_type': 'GRU',
+        #     'regularization_factor': 2e-4,
+        #     'use_bn_for_input': True,
+        #     'use_bn_for_rest': True
+        # }
+        # self.best_params = self.old_best
         self.best_params.update(kwargs)
         super().__init__(train_set, val_set, should_hyper_tune, test_set)
 
@@ -107,7 +125,9 @@ class RecurrentNNPredictingMatchesManager(NeuralNetworkManager):
         main_model.compile(loss=categorical_crossentropy_with_bets,
                            optimizer=opt,
                            # get_all_profit_metrics_for_pred_matches(confidence_threshold)
-                           metrics=[categorical_acc_with_bets, odds_profit_with_biggest_gap_over_threshold(confidence_threshold)])
+                           # categorical_acc_with_bets,
+                           metrics=[odds_profit_with_biggest_gap_over_threshold(confidence_threshold),
+                                    pred_matches_how_many_no_bets(confidence_threshold), pred_matches_precision(confidence_threshold)])
         return main_model
 
     def perform_model_learning(self, verbose=True):
@@ -118,7 +138,7 @@ class RecurrentNNPredictingMatchesManager(NeuralNetworkManager):
                                       validation_data=([self.x_val[0], self.x_val[1], self.x_val[2]], self.y_val),
                                       validation_batch_size=self.y_val.shape[0],
                                       callbacks=[
-                                          EarlyStopping(patience=100, monitor='val_loss', mode='min',
+                                          EarlyStopping(patience=150, monitor='val_loss', mode='min',
                                                         verbose=1 if verbose is True else 0
                                                         # , min_delta=0.001
                                                         ),
@@ -146,23 +166,31 @@ class RecurrentNNPredictingMatchesManager(NeuralNetworkManager):
     def plot_confidence_threshold(self):
         val_predictions = self.model.predict(self.x_val)
         val_true = self.y_val
-        test_predictions = self.model.predict(self.x_test)
-        test_true = self.y_test
+        if self.x_test is not None:
+            test_predictions = self.model.predict(self.x_test)
+            test_true = self.y_test
         confidence_values = np.linspace(0.001, 0.2, 2000)
         val_profit = []
         test_profit = []
         for confidence in confidence_values:
             val_profit.append(odds_profit_with_biggest_gap_over_threshold(confidence)(val_true, val_predictions).numpy())
-            test_profit.append(odds_profit_with_biggest_gap_over_threshold(confidence)(test_true, test_predictions).numpy())
+            if self.x_test is not None:
+                test_profit.append(odds_profit_with_biggest_gap_over_threshold(confidence)(test_true, test_predictions).numpy())
         plt.plot(confidence_values.tolist(), val_profit)
-        plt.plot(confidence_values.tolist(), test_profit)
+        if self.x_test is not None:
+            plt.plot(confidence_values.tolist(), test_profit)
         # plt.title('Validation and test)
         plt.xlabel("Confidence threshold")
         plt.ylabel("Profit")
-        plt.legend(["Val Profit", 'Test Profit'])
+        if self.x_test is not None:
+            plt.legend(["Val Profit", 'Test Profit'])
+        else:
+            plt.legend(["Val Profit"])
         plt.axhline(y=0, color='r')
         # plt.ylim([-0.03, 0.02])
-        plt.show()
+        # plt.show()
+        plt.grid()
+        plt.savefig(f'./confidence_threshold_check/confidence_threshold{datetime.datetime.now().timestamp()}.png', dpi=900)
 
     def hyper_tune_model(self):
         tuner = CustomBayesianSearch(self.create_model,

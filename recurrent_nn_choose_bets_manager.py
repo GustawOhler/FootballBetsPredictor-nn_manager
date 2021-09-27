@@ -1,60 +1,52 @@
 import tensorflow as tf
 import keras_tuner as kt
-import nn_manager.metrics
 from tensorflow import keras
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.python.keras.regularizers import l2
-from constants import saved_model_weights_base_path, saved_model_based_path, ChoosingBetsStrategy
+from constants import saved_model_weights_base_path, saved_model_based_path, ChoosingBetsStrategy, SHOULD_ADD_ODDS_AS_DATA_SEQUENCE
 from nn_manager.common import eval_model_after_learning, plot_metric, save_model
 from nn_manager.custom_bayesian_tuner import CustomBayesianSearch
 from nn_manager.metrics import how_many_no_bets, only_best_prob_odds_profit, profit_and_loss_tuning, all_odds_profit, choose_loss_based_on_strategy, \
-    profit_metric_based_on_strategy
+    profit_metric_based_on_strategy, choose_bets_precision, only_best_prob_odds_sum_profit, how_many_bets
 from nn_manager.neural_network_manager import NeuralNetworkManager
 from nn_manager.no_bet_early_stopping import NoBetEarlyStopping
 
 
 class RecurrentNNChoosingBetsManager(NeuralNetworkManager):
-    def __init__(self, train_set, val_set, should_hyper_tune, test_set=None, **kwargs):
-        self.old_best = {
-            "regularization_factor": 0.001,
-            "number_of_gru_units": 16,
-            "number_of_hidden_units_input_layer": 64,
-            "number_of_addit_hidden_layers": 0,
-            # "n_of_neurons": [5],
-            "learning_rate": 0.0003,
-        }
-        self.new_old_best = {
-            'dropout_rate': 0.1,
-            'gru_reccurent_regularization_factor': 0.00061,
-            'gru_regularization_factor': 0.0,
-            'learning_rate': 3e-05,
-            'loss_function': 'one_bet_profit_wrapped_in_sqrt_loss',
-            'number_of_addit_hidden_layers': 3,
-            'number_of_gru_units': 4,
-            'number_of_hidden_units_input_layer': 128,
-            'number_of_neurons_0_layer': 64,
-            'number_of_neurons_1_layer': 16,
-            'number_of_neurons_2_layer': 8,
-            'recurrent_type': 'SimpleRNN',
-            'regularization_factor': 0.0001
-        }
-        self.best_params = {'dropout_rate': 0.275,
-                            'gru_reccurent_regularization_factor': 0.00051439,
-                            'gru_regularization_factor': 6.144000000000001e-05,
-                            'learning_rate': 0.00018,
-                            'number_of_addit_hidden_layers': 2,
-                            'number_of_gru_units': 16,
-                            'number_of_neurons_0_layer': 512,
-                            'number_of_neurons_1_layer': 4,
+    def __init__(self, train_set, val_set, should_hyper_tune, test_set=None, load_best_weights=False, **kwargs):
+        # self.best_params = {'dropout_rate': 0.275,
+        #                     'gru_reccurent_regularization_factor': 0.00051439,
+        #                     'gru_regularization_factor': 6.144000000000001e-05,
+        #                     'learning_rate': 0.0003,
+        #                     'number_of_addit_hidden_layers': 2,
+        #                     'number_of_gru_units': 16,
+        #                     'number_of_neurons_0_layer': 512,
+        #                     'number_of_neurons_1_layer': 4,
+        #                     'recurrent_type': 'LSTM',
+        #                     'regularization_factor': 0.00233147,
+        #                     'use_bn_for_input': True,
+        #                     'use_bn_for_rest': True,
+        #                     'strategy': ChoosingBetsStrategy.AllOnBestResult,
+        #                     'should_add_expotential': True
+        #                     }
+        self.best_params = {'dropout_rate': 0.3,
+                            'gru_reccurent_regularization_factor': 1e-8,
+                            'gru_regularization_factor': 1e-7,
+                            'learning_rate': 0.0005,
+                            'number_of_addit_hidden_layers': 3,
+                            'number_of_gru_units': 8,
+                            'number_of_neurons_0_layer': 32,
+                            'number_of_neurons_1_layer': 16,
+                            'number_of_neurons_2_layer': 8,
                             'recurrent_type': 'LSTM',
-                            'regularization_factor': 0.00233147,
+                            'regularization_factor': 3e-8,
                             'use_bn_for_input': True,
                             'use_bn_for_rest': True,
                             'strategy': ChoosingBetsStrategy.AllOnBestResult,
                             'should_add_expotential': True
                             }
         self.best_params.update(kwargs)
-        super().__init__(train_set, val_set, should_hyper_tune, test_set)
+        super().__init__(train_set, val_set, should_hyper_tune, test_set, load_best_weights)
 
     def create_model(self, hp: kt.HyperParameters = None):
         factor = self.best_params["regularization_factor"] if not self.should_hyper_tune else hp.Float('regularization_factor', 0, 1e-2, step=1e-8)
@@ -123,29 +115,47 @@ class RecurrentNNChoosingBetsManager(NeuralNetworkManager):
             if use_bn_for_rest:
                 main_hidden = keras.layers.BatchNormalization()(main_hidden)
             main_hidden = keras.layers.Dropout(dropout_rate)(main_hidden)
+            if i == n_hidden_layers-1 and SHOULD_ADD_ODDS_AS_DATA_SEQUENCE:
+                bets_input = tf.keras.layers.Input((self.x_train[3].shape[1],))
+                if use_bn_for_rest and True:
+                    bets_bn = keras.layers.BatchNormalization()(bets_input)
+                    main_hidden = tf.keras.layers.Concatenate()([
+                        main_hidden,
+                        bets_bn
+                    ])
+                else:
+                    main_hidden = tf.keras.layers.Concatenate()([
+                        main_hidden,
+                        bets_input
+                    ])
             main_hidden = keras.layers.Dense(neurons_quantity, activation='relu',
                                              kernel_regularizer=l2(factor),
                                              bias_regularizer=l2(factor),
                                              kernel_initializer=tf.keras.initializers.he_normal())(main_hidden)
         main_hidden = keras.layers.Dense(4, activation='softmax')(main_hidden)
-        main_model = keras.models.Model(inputs=[home_input, away_input, rest_of_input], outputs=main_hidden)
-
-        opt = keras.optimizers.Adam(learning_rate=learning_rate)
+        input_arr = [home_input, away_input, rest_of_input]
+        if SHOULD_ADD_ODDS_AS_DATA_SEQUENCE:
+            input_arr.append(bets_input)
+        main_model = keras.models.Model(inputs=input_arr, outputs=main_hidden)
+        decayed_lr = tf.keras.optimizers.schedules.InverseTimeDecay(learning_rate, decay_steps=231, decay_rate=0.25)
+        opt = keras.optimizers.Adam(learning_rate=decayed_lr)
         main_model.compile(loss=choose_loss_based_on_strategy(self.best_params['strategy'], True, self.best_params['should_add_expotential']),
                            optimizer=opt,
-                           metrics=[how_many_no_bets, profit_metric_based_on_strategy(self.best_params['strategy'])])
+                           metrics=[how_many_no_bets, profit_metric_based_on_strategy(self.best_params['strategy']), choose_bets_precision(),
+                                    how_many_bets, only_best_prob_odds_sum_profit(True)])
         return main_model
 
     def perform_model_learning(self, verbose=True):
-        self.history = self.model.fit(x=[self.x_train[0], self.x_train[1], self.x_train[2]], y=self.y_train, epochs=1000,
-                                      batch_size=256,
+        self.history = self.model.fit(x=self.x_train, y=self.y_train, epochs=250,
+                                      batch_size=128,
                                       verbose=1 if verbose else 0,
-                                      shuffle=False,
-                                      validation_data=([self.x_val[0], self.x_val[1], self.x_val[2]], self.y_val),
+                                      shuffle=True,
+                                      validation_data=(self.x_val, self.y_val),
                                       validation_batch_size=self.y_val.shape[0],
                                       callbacks=[
-                                          EarlyStopping(patience=100, monitor='val_loss', mode='min', verbose=1 if verbose else 0, min_delta=0.001),
-                                          NoBetEarlyStopping(patience=75),
+                                          EarlyStopping(patience=150, monitor='val_loss', mode='min', verbose=1 if verbose else 0),
+                                          # EarlyStopping(patience=500, monitor='val_profit', mode='max', verbose=1 if verbose else 0),
+                                          # NoBetEarlyStopping(patience=150),
                                           ModelCheckpoint(self.get_path_for_saving_weights(), save_best_only=True, save_weights_only=True,
                                                           monitor='val_profit', mode='max', verbose=1 if verbose else 0)]
                                       # callbacks=[TensorBoard(write_grads=True, histogram_freq=1, log_dir='.\\tf_logs', write_graph=True)]
@@ -175,53 +185,3 @@ class RecurrentNNChoosingBetsManager(NeuralNetworkManager):
         self.print_summary_after_tuning(tuner, 10)
 
         return tuner
-
-    # def evaluate_model(self):
-    #     print("Treningowy zbior: ")
-    #     eval_model_after_learning(self.y_train[:, 0:4], self.model.predict(self.x_train), self.y_train[:, 4:7])
-    #
-    #     print("Walidacyjny zbior: ")
-    #     eval_model_after_learning(self.y_val[:, 0:4], self.model.predict(self.x_val), self.y_val[:, 4:7])
-    #
-    #     plot_metric(self.history, 'loss')
-    #     plot_metric(self.history, 'profit')
-    #
-    # def build_model(self):
-    #     dropout_rate = 0.3
-    #     regularization_factor = 1e-3
-    #     learning_rate = 1e-4
-    #     confidence_threshold = 0.05
-    #     rnn_regularization_factor = 1e-5
-    #     rnn_recurrent_regularization_factor = 1e-6
-    #
-    #     home_input = tf.keras.layers.Input((self.x_train[0].shape[1], self.x_train[0].shape[2],))
-    #     home_rnn = tf.keras.layers.RNN(4,  kernel_regularizer=l2(rnn_regularization_factor),
-    #                                        bias_regularizer=l2(rnn_regularization_factor),
-    #                                        recurrent_regularizer=l2(rnn_recurrent_regularization_factor)
-    #                                        )(home_input)
-    #
-    #     away_input = tf.keras.layers.Input((self.x_train[1].shape[1], self.x_train[1].shape[2],))
-    #     away_model = tf.keras.layers.RNN(4,  kernel_regularizer=l2(rnn_regularization_factor),
-    #                                          bias_regularizer=l2(rnn_regularization_factor),
-    #                                          recurrent_regularizer=l2(rnn_recurrent_regularization_factor)
-    #                                          )(away_input)
-    #
-    #     rest_of_input = tf.keras.layers.Input((self.x_train[2].shape[1],))
-    #     all_merged = tf.keras.layers.Concatenate()([
-    #         home_rnn,
-    #         away_model,
-    #         rest_of_input
-    #     ])
-    #     model = tf.keras.layers.BatchNormalization()(all_merged)
-    #     model = tf.keras.layers.Dropout(dropout_rate)(model)
-    #     model = tf.keras.layers.Dense(64, activation='relu',
-    #                                  kernel_regularizer=l2(regularization_factor),
-    #                                  bias_regularizer=l2(regularization_factor),
-    #                                  kernel_initializer=tf.keras.initializers.he_normal())(model)
-    #     model = tf.keras.layers.Dense(3, activation='softmax', kernel_initializer=tf.keras.initializers.he_normal(),
-    #                                  kernel_regularizer=l2(regularization_factor),
-    #                                  bias_regularizer=l2(regularization_factor))(model)
-    #     model.compile(loss=categorical_crossentropy_with_bets,
-    #                   optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
-    #                   metrics=[categorical_acc_with_bets, odds_profit_within_threshold(confidence_threshold)])
-    #     return model

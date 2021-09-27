@@ -7,7 +7,7 @@ from nn_manager.common import eval_model_after_learning_within_threshold, plot_m
 
 
 class NeuralNetworkManager(ABC):
-    def __init__(self, train_set, val_set, should_hyper_tune, test_set):
+    def __init__(self, train_set, val_set, should_hyper_tune, test_set, load_best_weights=False):
         keras.backend.clear_session()
         self.x_train = train_set[0]
         self.y_train = train_set[1]
@@ -22,6 +22,8 @@ class NeuralNetworkManager(ABC):
         self.should_hyper_tune = should_hyper_tune
         if not should_hyper_tune:
             self.model = self.create_model()
+        if load_best_weights:
+            self.model.load_weights(self.get_path_for_saving_best_weights())
         self.history = None
 
     @abstractmethod
@@ -60,6 +62,12 @@ class NeuralNetworkManager(ABC):
 
     def get_path_for_saving_weights(self):
         return saved_model_weights_base_path + self.__class__.__name__ + '/checkpoint'
+
+    def get_path_for_saving_best_weights(self):
+        return saved_model_weights_base_path + self.__class__.__name__ + '_best_weights/checkpoint'
+
+    def save_best_weights(self):
+        self.model.save_weights(self.get_path_for_saving_best_weights(), overwrite=True)
 
     def print_summary_after_tuning(self, tuner, how_much_models, path=None):
         original_stdout = sys.stdout

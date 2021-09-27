@@ -123,6 +123,7 @@ def one_bet_profit_wrapped_loss(should_add_expotential: bool):
             function_value = tf.math.pow(0.5, summed_gain_loss - 1.0) - (tf.math.log(predicted_gain_loss_clipped + 1.0))
         else:
             predicted_gain_loss_clipped = tf.clip_by_value(summed_gain_loss, -1.0 + epsilon, tf.float32.max)
+            # tf.print(predicted_gain_loss_clipped)
             function_value = -(tf.math.log(predicted_gain_loss_clipped + 1.0))
         return tf.reduce_mean(function_value)
 
@@ -166,6 +167,37 @@ def only_best_prob_odds_profit(should_zero_one_probs: bool):
         return tf.reduce_mean(tf.reduce_sum(gain_loss_vector * zerod_prediction, axis=1))
 
     inner_metric.__name__ = 'profit'
+    return inner_metric
+
+
+def only_best_prob_odds_sum_profit(should_zero_one_probs: bool):
+    def inner_metric(y_true, y_pred):
+        win_home_team = y_true[:, 0:1]
+        draw = y_true[:, 1:2]
+        win_away = y_true[:, 2:3]
+        no_bet = y_true[:, 3:4]
+        odds_a = y_true[:, 4:5]
+        odds_draw = y_true[:, 5:6]
+        odds_b = y_true[:, 6:7]
+        gain_loss_vector = tf.concat([win_home_team * (odds_a - 1) + (1 - win_home_team) * -1,
+                                      draw * (odds_draw - 1) + (1 - draw) * -1,
+                                      win_away * (odds_b - 1) + (1 - win_away) * -1,
+                                      tf.zeros_like(odds_a)], axis=1)
+        if should_zero_one_probs:
+            zerod_prediction = tf.where(
+                tf.not_equal(tf.reduce_max(y_pred, axis=1, keepdims=True), y_pred),
+                tf.zeros_like(y_pred, dtype='float32'),
+                tf.ones_like(y_pred, dtype='float32')
+            )
+        else:
+            zerod_prediction = tf.where(
+                tf.not_equal(tf.reduce_max(y_pred, axis=1, keepdims=True), y_pred),
+                tf.zeros_like(y_pred, dtype='float32'),
+                y_pred
+            )
+        return tf.reduce_sum(gain_loss_vector * zerod_prediction)
+
+    inner_metric.__name__ = 'accumulated_profit'
     return inner_metric
 
 
@@ -298,6 +330,54 @@ def odds_profit_with_biggest_gap_over_threshold(threshold):
     return inner_metric
 
 
+def pred_matches_precision(threshold):
+    prec = tf.keras.metrics.Precision()
+    def inner_metric(y_true, y_pred):
+        outcome_possibilities = 1.0 / y_true[:, 4:7]
+        prediction_diff = tf.subtract(y_pred, outcome_possibilities)
+        highest_gap_prediction = tf.reduce_max(prediction_diff, axis=1, keepdims=True)
+        zerod_prediction = tf.where(
+            tf.not_equal(highest_gap_prediction, prediction_diff),
+            tf.zeros_like(prediction_diff),
+            prediction_diff
+        )
+        predictions_above_threshold = tf.where(
+            tf.greater_equal(zerod_prediction, threshold),
+            tf.ones_like(zerod_prediction),
+            tf.zeros_like(zerod_prediction)
+        )
+        prec.reset_state()
+        prec.update_state(y_true[:, 0:3], predictions_above_threshold)
+        return prec.result()
+
+    inner_metric.__name__ = 'precision'
+    return inner_metric
+
+
+def pred_matches_how_many_no_bets(threshold):
+    def inner_metric(y_true, y_pred):
+        outcome_possibilities = 1.0 / y_true[:, 4:7]
+        prediction_diff = tf.subtract(y_pred, outcome_possibilities)
+        highest_gap_prediction = tf.reduce_max(prediction_diff, axis=1, keepdims=True)
+        zerod_prediction = tf.where(
+            tf.not_equal(highest_gap_prediction, prediction_diff),
+            tf.zeros_like(prediction_diff),
+            prediction_diff
+        )
+        predictions_above_threshold = tf.where(
+            tf.greater_equal(zerod_prediction, threshold),
+            tf.ones_like(zerod_prediction),
+            tf.zeros_like(zerod_prediction)
+        )
+        elements_equal_to_value = tf.equal(tf.reduce_max(predictions_above_threshold, axis=1, keepdims=True), tf.constant(0, dtype=tf.float32))
+        as_ints = tf.cast(elements_equal_to_value, tf.float32)
+        count = tf.reduce_sum(as_ints)
+        return count * 100.0 / tf.cast(tf.shape(y_pred)[0], tf.float32)
+
+    inner_metric.__name__ = 'how_many_no_bets'
+    return inner_metric
+
+
 def relative_profit_over_threshold(threshold, chosen_strategy: PredMatchesStrategy):
     def inner_metric(y_true, y_pred):
         win_home_team = y_true[:, 0:1]
@@ -400,6 +480,32 @@ def how_many_no_bets(y_true, y_pred):
     wanted_class = tf.constant(3, dtype="int64")
     logical = tf.math.equal(classes, wanted_class)
     return tf.reduce_sum(tf.cast(logical, tf.float32)) * 100.0 / tf.cast(tf.shape(y_pred)[0], tf.float32)
+
+
+def how_many_bets(y_true, y_pred):
+    all_predictions = y_pred[:, 0:4]
+    classes = tf.math.argmax(all_predictions, 1)
+    wanted_class = tf.constant(3, dtype="int64")
+    logical = tf.math.not_equal(classes, wanted_class)
+    return tf.reduce_sum(tf.cast(logical, tf.float32)) * 100.0 / tf.cast(tf.shape(y_pred)[0], tf.float32)
+
+
+def choose_bets_precision():
+    prec = tf.keras.metrics.Precision()
+    def inner_metric(y_true, y_pred):
+        prec.reset_state()
+        only_results = y_true[:, 0:3]
+        # tf.print(only_results)
+        zerod_pred = tf.where(
+            tf.equal(tf.reduce_max(y_pred, axis=1, keepdims=True), y_pred),
+            tf.ones_like(y_pred),
+            tf.zeros_like(y_pred)
+        )
+        prec.update_state(only_results, zerod_pred[:, 0:3])
+        return prec.result()
+
+    inner_metric.__name__ = 'precision'
+    return inner_metric
 
 
 def categorical_crossentropy_with_bets(y_true, y_pred):

@@ -15,7 +15,7 @@ class NoBetEarlyStopping(Callback):
     def on_epoch_end(self, epoch, logs=None):
         v_no_bets = logs.get("val_how_many_no_bets")
         v_profit = logs.get("val_profit")
-        if v_no_bets > 95.0:
+        if v_no_bets > 97.5:
             if v_profit > self.best_profit:
                 self.best_profit = v_profit
             else:

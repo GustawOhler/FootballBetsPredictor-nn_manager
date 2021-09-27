@@ -1,10 +1,12 @@
+import math
+
 import numpy as np
 import pandas as pd
 from flatten_dict import flatten
-from sklearn.model_selection import KFold, RepeatedKFold
-from constants import is_model_rnn, DatasetType, ModelType, ChoosingBetsStrategy, PredMatchesStrategy
+from sklearn.model_selection import KFold, RepeatedKFold, RepeatedStratifiedKFold
+from constants import is_model_rnn, DatasetType, ModelType, ChoosingBetsStrategy, PredMatchesStrategy, best_model
 from dataset_manager.class_definitions import DatasetSplit
-from dataset_manager.dataset_manager import get_whole_dataset, get_dataset_ready_to_learn
+from dataset_manager.dataset_manager import get_whole_dataset, get_dataset_ready_to_learn, get_splitted_dataset
 from nn_manager.nn_pred_matches_manager import NNPredictingMatchesManager
 from nn_manager.recurrent_nn_pred_matches_manager import RecurrentNNPredictingMatchesManager
 from nn_manager.nn_choose_bets_menager import NNChoosingBetsManager
@@ -95,14 +97,15 @@ def check_if_model_is_rnn(model_type: ModelType):
 
 
 def perform_k_fold_with_different_models():
-    rep_k_folder = RepeatedKFold(n_repeats=3, n_splits=10)
+    rep_k_folder = RepeatedStratifiedKFold(n_repeats=1, n_splits=3)
     ffnn_dataset = get_whole_dataset(False, DatasetType.BASIC)
     recurrent_dataset = get_whole_dataset(False, DatasetType.SEPARATED_MATCHES)
     possible_models = {ModelType.RNN: RecurrentNNChoosingBetsManager, ModelType.RNN_pred_matches: RecurrentNNPredictingMatchesManager}
     tracked_metrics = {model_type: {} for model_type in possible_models}
     base_ids = ffnn_dataset['match_id']
+    whole_x, whole_y = recurrent_dataset.drop('result', axis='columns'), recurrent_dataset[['result']]
     loop_index = 1
-    for train_index, val_index in rep_k_folder.split(base_ids):
+    for train_index, val_index in rep_k_folder.split(whole_x, whole_y):
         print("Rozpoczynam uczenie dla próbek nr " + str(loop_index), end="\r")
         loop_index += 1
         train_ids, val_ids = base_ids.iloc[train_index], base_ids.iloc[val_index]
@@ -125,19 +128,49 @@ def perform_k_fold_with_different_models():
     return tracked_metrics
 
 
-# def perform_single_k_fold_trial(trial_index, dataset, ids, is_rnn, model_constructor, tested_dict):
-#     print("Rozpoczynam uczenie dla próbek nr " + str(trial_index), end="\r")
-#     train_ids, val_ids = ids
-#     for model_type, model_constructor in possible_models.items():
-#         train_ds, val_ds = dataset.loc[dataset['match_id'].isin(train_ids)], dataset.loc[dataset['match_id'].isin(val_ids)]
-#         train_x, train_y = get_dataset_ready_to_learn(train_ds, DatasetSplit.TRAIN, is_rnn, False)
-#         val_x, val_y = get_dataset_ready_to_learn(val_ds, DatasetSplit.VAL, is_rnn, False)
-#         curr_nn_manager = model_constructor((train_x, train_y), (val_x, val_y), False, None)
-#         curr_nn_manager.perform_model_learning(verbose=False)
-#         if len(tracked_metrics[model_type]) == 0:
-#             tracked_metrics[model_type].update({metric_name: [] for metric_name in curr_nn_manager.model.metrics_names})
-#         for index, metric_name in enumerate(curr_nn_manager.model.metrics_names):
-#             tracked_metrics[model_type][metric_name].append(curr_nn_manager.model.evaluate(val_x, val_y, batch_size=val_y.shape[0], verbose=0)[index])
+def perform_k_fold_on_last_2():
+    rep_k_folder = RepeatedStratifiedKFold(n_repeats=5, n_splits=10)
+    recurrent_dataset = get_whole_dataset(False, DatasetType.SEPARATED_MATCHES)
+    possible_models = {ModelType.RNN: RecurrentNNChoosingBetsManager, ModelType.RNN_pred_matches: RecurrentNNPredictingMatchesManager}
+    tracked_metrics = {model_type: {} for model_type in possible_models}
+    whole_x, whole_y = recurrent_dataset.drop('result', axis='columns'), recurrent_dataset[['result']]
+    loop_index = 1
+    for train_index, val_index in rep_k_folder.split(whole_x, whole_y):
+        print("Rozpoczynam uczenie dla próbek nr " + str(loop_index), end="\r")
+        loop_index += 1
+        for model_type, model_constructor in possible_models.items():
+            train_ds, val_ds = recurrent_dataset.iloc[train_index], recurrent_dataset.iloc[val_index]
+            train_x, train_y = get_dataset_ready_to_learn(train_ds, DatasetSplit.TRAIN, True, False)
+            val_x, val_y = get_dataset_ready_to_learn(val_ds, DatasetSplit.VAL, True, False)
+            curr_nn_manager = model_constructor((train_x, train_y), (val_x, val_y), False, None)
+            curr_nn_manager.perform_model_learning(verbose=False)
+            if len(tracked_metrics[model_type]) == 0:
+                tracked_metrics[model_type].update({metric_name: [] for metric_name in curr_nn_manager.model.metrics_names})
+            for index, metric_name in enumerate(curr_nn_manager.model.metrics_names):
+                tracked_metrics[model_type][metric_name].append(curr_nn_manager.model.evaluate(val_x, val_y, batch_size=val_y.shape[0], verbose=0)[index])
+    return tracked_metrics
+
+def perform_test_check_on_last_2():
+    possible_models = {ModelType.RNN: RecurrentNNChoosingBetsManager, ModelType.RNN_pred_matches: RecurrentNNPredictingMatchesManager}
+    tracked_metrics = {model_type: {} for model_type in possible_models}
+    for loop_index in range(1, 11):
+        print("Rozpoczynam uczenie dla próbek nr " + str(loop_index), end="\r")
+        datasets = get_splitted_dataset(False, True, 0.1, 0.5)
+        train_set = datasets[0]
+        val_set = datasets[1]
+        test_set = datasets[2]
+        for model_type, model_constructor in possible_models.items():
+            curr_nn_manager = model_constructor(train_set, val_set, False, test_set)
+            curr_nn_manager.perform_model_learning(verbose=False)
+            if len(tracked_metrics[model_type]) == 0:
+                tracked_metrics[model_type].update({metric_name: {'val': [], 'test': []} for metric_name in curr_nn_manager.model.metrics_names})
+            for index, metric_name in enumerate(curr_nn_manager.model.metrics_names):
+                tracked_metrics[model_type][metric_name]['val'].append(curr_nn_manager.model.evaluate(val_set[0], val_set[1], batch_size=val_set[1].shape[0],
+                                                                                                     verbose=0)[index])
+                tracked_metrics[model_type][metric_name]['test'].append(curr_nn_manager.model.evaluate(test_set[0], test_set[1],
+                                                                                                      batch_size=test_set[1].shape[0],
+                                                                                                      verbose=0)[index])
+    return tracked_metrics
 
 def perform_k_fold_on_expotential(nn_manager, dataset):
     rep_k_folder = RepeatedKFold(n_repeats=3, n_splits=5)
@@ -199,6 +232,25 @@ def perform_k_fold_for_different_strategies(nn_manager, dataset, is_rnn, is_for_
             for strategy, result in curr_nn_manager.get_best_strategies_value().items():
                 tracked_metrics[strategy].append(result)
     return tracked_metrics
+
+
+def search_for_best_configuration(datasets):
+    model_to_search = best_model
+    best_profit = -math.inf
+    train_set = datasets[0]
+    val_set = datasets[1]
+    test_set = datasets[2]
+    for loop_index in range(1, 16):
+        print("Rozpoczynam uczenie dla próbek nr " + str(loop_index))
+        curr_nn_manager = (globals()[model_to_search.value])(train_set, val_set, False, test_set)
+        curr_nn_manager.perform_model_learning(verbose=False)
+        profit_index = curr_nn_manager.model.metrics_names.index('profit')
+        curr_model_profit = curr_nn_manager.model.evaluate(val_set[0], val_set[1], batch_size=val_set[1].shape[0], verbose=0)[profit_index]
+        if curr_model_profit > best_profit:
+            best_profit = curr_model_profit
+            curr_nn_manager.save_best_weights()
+            print(f"Model {model_to_search.value} zapisany z zyskiem {best_profit}")
+    print(f"Najlepszy zysk: {best_profit}")
 
 
 def print_results_to_csv(tracked_metrics: dict, choosed_path: str):

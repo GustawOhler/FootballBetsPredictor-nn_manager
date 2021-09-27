@@ -1,3 +1,4 @@
+import datetime
 import math
 from enum import Enum
 import numpy as np
@@ -35,6 +36,22 @@ def plot_metric(history, metric):
     plt.show()
 
 
+def plot_profit_for_thesis(history):
+    metric = 'profit'
+    train_metrics = history.history[metric]
+    val_metrics = history.history['val_' + metric]
+    epochs = range(1, len(train_metrics) + 1)
+    plt.plot(epochs, train_metrics)
+    plt.plot(epochs, val_metrics)
+    plt.xlabel("Epoki")
+    plt.ylabel("Zysk")
+    plt.legend(["Zysk dla zbioru treningowego", 'Zysk dla zbioru walidacyjnego'])
+    plt.axhline(y=0, color='r')
+    plt.ylim([-0.055, 0.025])
+    plt.grid()
+    plt.savefig(f'./thesis_plots/profit_plot_{datetime.datetime.now().timestamp()}.png', dpi=900)
+
+
 def plot_many_metrics(history, metrics: list, print_only_validation:bool, do_profit_line: bool):
     legend_array = []
     for metric in metrics:
@@ -56,6 +73,17 @@ def plot_many_metrics(history, metrics: list, print_only_validation:bool, do_pro
     plt.savefig('./requested_metrics.png', dpi=900)
 
 
+def get_profits(predicted_classes, actual_classes, odds):
+    profits = []
+    for i in range(predicted_classes.shape[0]):
+        if predicted_classes[i] == Categories.NO_BET.value:
+            profits.append(0.0)
+        elif predicted_classes[i] == actual_classes[i]:
+            profits.append(odds[i][actual_classes[i]] - 1.0)
+        else:
+             profits.append(-1.0)
+    return profits
+
 def show_winnings(predicted_classes, actual_classes, odds):
     winnings = 0.0
     for i in range(predicted_classes.shape[0]):
@@ -69,6 +97,21 @@ def show_winnings(predicted_classes, actual_classes, odds):
             winnings = winnings - 1.0
     print("Bilans wygranych/strat z potencjalnych zakładów: " + str("{:.2f}".format(winnings)) + " na " + str(len(predicted_classes)) + " meczow (" +
           str("{:.2f}%)".format(winnings / len(predicted_classes) * 100)))
+
+
+def show_winnings_for_classes(predicted_classes, actual_classes, odds):
+    for j in Categories:
+        winnings = 0.0
+        for i in range(predicted_classes.shape[0]):
+            if predicted_classes[i] != j.value:
+                continue
+            elif predicted_classes[i] == Categories.NO_BET.value:
+                continue
+            elif predicted_classes[i] == actual_classes[i]:
+                winnings = winnings + odds[i][actual_classes[i]] - 1.0
+            else:
+                winnings = winnings - 1.0
+        print("Bilans wygranych: " + str("{:.2f}".format(winnings)) + " dla klasy " + str(j))
 
 
 # sprawdzanie wygranych dla obstawiania zakladow z najwiekszym prawdopodobienstwem (i roznica w podanym progu)
@@ -181,6 +224,7 @@ def eval_model_after_learning(y_true, y_pred, odds):
     y_pred_classes = y_pred.argmax(axis=-1)
     y_true_classes = y_true.argmax(axis=-1)
     show_winnings(y_pred_classes, y_true_classes, odds)
+    show_winnings_for_classes(y_pred_classes, y_true_classes, odds)
     show_accuracy_for_classes(y_pred_classes, y_true_classes)
 
 
