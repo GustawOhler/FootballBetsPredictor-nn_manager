@@ -24,20 +24,6 @@ class NNPredictingMatchesManager(NeuralNetworkManager):
             'use_bn_for_input': True,
             'use_bn_for_rest': True
         }
-        # self.best_params = {
-        #     'confidence_threshold': 0.05,
-        #     'dropout_rate': 0.15,
-        #     'input_dropout_rate': 0.2,
-        #     'layers_quantity': 3,
-        #     'learning_rate': 3.5999999999999994e-05,
-        #     'number_of_neurons_0_layer': 32,
-        #     'number_of_neurons_1_layer': 16,
-        #     'number_of_neurons_2_layer': 16,
-        #     'regularization_factor': 0.0034858521000000003,
-        #     'regularize_output_layer': False,
-        #     'use_bn_for_input': True,
-        #     'use_bn_for_rest': True
-        # }
         self.best_params.update(kwargs)
         super().__init__(train_set, val_set, should_hyper_tune, test_set)
 
@@ -68,7 +54,6 @@ class NNPredictingMatchesManager(NeuralNetworkManager):
                 with hp.conditional_scope('layers_quantity', parent_values=list(range(i + 1, max_layers_quantity + 1))):
                     neurons_quantity = hp.Choice(f'number_of_neurons_{i}_layer', [8, 16, 32, 64, 128, 256, 512])
             model.add(keras.layers.Dense(neurons_quantity, activation='relu',
-                                         # activity_regularizer=l2(factor),
                                          kernel_regularizer=l2(factor),
                                          bias_regularizer=l2(factor),
                                          kernel_initializer=tf.keras.initializers.he_normal()))
@@ -94,12 +79,9 @@ class NNPredictingMatchesManager(NeuralNetworkManager):
                                                                verbose=1 if verbose is True else 0, min_delta=0.001),
                                                  ModelCheckpoint(self.get_path_for_saving_weights(), save_best_only=True, save_weights_only=True,
                                                                  monitor='val_profit', mode='max', verbose=1 if verbose is True else 0)]
-                                      # callbacks=[TensorBoard(write_grads=True, histogram_freq=1, log_dir='.\\tf_logs', write_graph=True)]
-                                      # callbacks=[WeightChangeMonitor()]
                                       )
 
         self.model.load_weights(self.get_path_for_saving_weights())
-        # save_model(self.model, self.get_path_for_saving_model())
 
     def hyper_tune_model(self):
         tuner = CustomBayesianSearch(self.create_model,
@@ -120,21 +102,3 @@ class NNPredictingMatchesManager(NeuralNetworkManager):
 
     def evaluate_model(self, should_plot=True, should_print_train=True, hyperparams=None):
         self.evaluate_model_with_threshold(should_plot, should_print_train, hyperparams)
-
-    # def evaluate_model(self):
-    #     print("Treningowy zbior: ")
-    #     eval_model_after_learning_within_threshold(self.y_train[:, 0:3], self.model.predict(self.x_train), self.y_train[:, 4:7],
-    #                                                self.best_params["confidence_threshold"])
-    #     print("Walidacyjny zbior: ")
-    #     eval_model_after_learning_within_threshold(self.y_val[:, 0:3], self.model.predict(self.x_val), self.y_val[:, 4:7],
-    #                                                self.best_params["confidence_threshold"])
-    #
-    #     if self.x_test is not None:
-    #         print("Testowy zbior: ")
-    #         # pprint.pprint(self.model.evaluate(self.x_test, self.y_test, verbose=0, batch_size=16, return_dict=True), width=1)
-    #         eval_model_after_learning_within_threshold(self.y_test[:, 0:3], self.model.predict(self.x_test), self.y_test[:, 4:7],
-    #                                                    self.best_params["confidence_threshold"])
-    #
-    #     plot_metric(self.history, 'loss')
-    #     plot_metric(self.history, 'categorical_acc_with_bets')
-    #     plot_metric(self.history, 'profit')

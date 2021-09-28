@@ -31,23 +31,6 @@ class RecurrentNNPredictingMatchesManager(NeuralNetworkManager):
             'use_bn_for_input': True,
             'use_bn_for_rest': True
         }
-        # self.best_params = {
-        #     'confidence_threshold': 0.07,
-        #     'dropout_rate': 0.5,
-        #     'gru_reccurent_regularization_factor': 1e-4,
-        #     'gru_regularization_factor': 1e-3,
-        #     'learning_rate': 1e-4,
-        #     'number_of_addit_hidden_layers': 3,
-        #     'number_of_gru_units': 8,
-        #     'number_of_neurons_0_layer': 16,
-        #     'number_of_neurons_1_layer': 16,
-        #     'number_of_neurons_2_layer': 4,
-        #     'recurrent_type': 'GRU',
-        #     'regularization_factor': 2e-4,
-        #     'use_bn_for_input': True,
-        #     'use_bn_for_rest': True
-        # }
-        # self.best_params = self.old_best
         self.best_params.update(kwargs)
         super().__init__(train_set, val_set, should_hyper_tune, test_set)
 
@@ -88,7 +71,6 @@ class RecurrentNNPredictingMatchesManager(NeuralNetworkManager):
                                              recurrent_regularizer=l2(recurrent_regulizer))(away_input)
 
         rest_of_input = tf.keras.layers.Input((self.x_train[2].shape[1],))
-        # main_model = tf.keras.models.Sequential()
         all_merged = tf.keras.layers.Concatenate()([
             home_rnn,
             away_model,
@@ -140,16 +122,12 @@ class RecurrentNNPredictingMatchesManager(NeuralNetworkManager):
                                       callbacks=[
                                           EarlyStopping(patience=150, monitor='val_loss', mode='min',
                                                         verbose=1 if verbose is True else 0
-                                                        # , min_delta=0.001
                                                         ),
                                           ModelCheckpoint(self.get_path_for_saving_weights(), save_best_only=True, save_weights_only=True,
                                                           monitor='val_profit', mode='max', verbose=1 if verbose is True else 0)]
-                                      # callbacks=[TensorBoard(write_grads=True, histogram_freq=1, log_dir='.\\tf_logs', write_graph=True)]
-                                      # callbacks=[WeightChangeMonitor()]
                                       )
 
         self.model.load_weights(self.get_path_for_saving_weights())
-        # save_model(self.model, self.get_path_for_saving_model())
 
     def get_best_metric_value(self, metric_name):
         return max(self.history.history[metric_name])
@@ -179,7 +157,6 @@ class RecurrentNNPredictingMatchesManager(NeuralNetworkManager):
         plt.plot(confidence_values.tolist(), val_profit)
         if self.x_test is not None:
             plt.plot(confidence_values.tolist(), test_profit)
-        # plt.title('Validation and test)
         plt.xlabel("Confidence threshold")
         plt.ylabel("Profit")
         if self.x_test is not None:
@@ -187,8 +164,6 @@ class RecurrentNNPredictingMatchesManager(NeuralNetworkManager):
         else:
             plt.legend(["Val Profit"])
         plt.axhline(y=0, color='r')
-        # plt.ylim([-0.03, 0.02])
-        # plt.show()
         plt.grid()
         plt.savefig(f'./confidence_threshold_check/confidence_threshold{datetime.datetime.now().timestamp()}.png', dpi=900)
 
@@ -213,20 +188,3 @@ class RecurrentNNPredictingMatchesManager(NeuralNetworkManager):
 
     def evaluate_model(self, should_plot=True, should_print_train=True, hyperparams=None):
         self.evaluate_model_with_threshold(should_plot, should_print_train, hyperparams)
-        # print("Treningowy zbior: ")
-        # eval_model_after_learning_within_threshold(self.y_train[:, 0:3], self.model.predict(self.x_train), self.y_train[:, 4:7],
-        #                                            self.best_params["confidence_threshold"])
-        #
-        # print("Walidacyjny zbior: ")
-        # eval_model_after_learning_within_threshold(self.y_val[:, 0:3], self.model.predict(self.x_val), self.y_val[:, 4:7],
-        #                                            self.best_params["confidence_threshold"])
-        #
-        # if self.x_test is not None:
-        #     print("Testowy zbior: ")
-        #     # pprint.pprint(self.model.evaluate(self.x_test, self.y_test, verbose=0, batch_size=16, return_dict=True), width=1)
-        #     eval_model_after_learning_within_threshold(self.y_test[:, 0:3], self.model.predict(self.x_test), self.y_test[:, 4:7],
-        #                                                self.best_params["confidence_threshold"])
-        #
-        # plot_metric(self.history, 'loss')
-        # plot_metric(self.history, 'categorical_acc_with_bets')
-        # plot_metric(self.history, 'profit')

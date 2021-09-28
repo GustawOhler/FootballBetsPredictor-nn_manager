@@ -123,7 +123,6 @@ def one_bet_profit_wrapped_loss(should_add_expotential: bool):
             function_value = tf.math.pow(0.5, summed_gain_loss - 1.0) - (tf.math.log(predicted_gain_loss_clipped + 1.0))
         else:
             predicted_gain_loss_clipped = tf.clip_by_value(summed_gain_loss, -1.0 + epsilon, tf.float32.max)
-            # tf.print(predicted_gain_loss_clipped)
             function_value = -(tf.math.log(predicted_gain_loss_clipped + 1.0))
         return tf.reduce_mean(function_value)
 
@@ -285,7 +284,6 @@ def only_best_prob_odds_profit_within_threshold(threshold):
         gain_loss_vector = tf.concat([win_home_team * (odds_a - 1) + (1 - win_home_team) * -1,
                                       draw * (odds_draw - 1) + (1 - draw) * -1,
                                       win_away * (odds_b - 1) + (1 - win_away) * -1
-                                      # tf.zeros_like(odds_a)
                                       ], axis=1)
         predictions_over_threshold = get_predictions_over_threshold(y_true, y_pred, threshold)
         only_most_probable_prediction = tf.where(
@@ -390,7 +388,6 @@ def relative_profit_over_threshold(threshold, chosen_strategy: PredMatchesStrate
                                       draw * (odds_draw - 1) + (1 - draw) * -1,
                                       win_away * (odds_b - 1) + (1 - win_away) * -1
                                       ], axis=1)
-        # predictions_over_threshold = get_predictions_over_threshold(y_true, y_pred, threshold)
         outcome_possibilities = 1.0 / y_true[:, 4:7]
         prediction_diff = tf.subtract(y_pred, outcome_possibilities)
         prediction_diff_without_negative = tf.where(
@@ -495,7 +492,6 @@ def choose_bets_precision():
     def inner_metric(y_true, y_pred):
         prec.reset_state()
         only_results = y_true[:, 0:3]
-        # tf.print(only_results)
         zerod_pred = tf.where(
             tf.equal(tf.reduce_max(y_pred, axis=1, keepdims=True), y_pred),
             tf.ones_like(y_pred),

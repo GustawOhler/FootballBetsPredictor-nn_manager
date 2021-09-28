@@ -69,7 +69,6 @@ class NNChoosingBetsManager(NeuralNetworkManager):
                 with hp.conditional_scope('layers_quantity', parent_values=list(range(i + 1, max_layers_quantity + 1))):
                     neurons_quantity = hp.Choice(f'number_of_neurons_{i}_layer', [8, 16, 32, 64, 128, 256, 512])
             model.add(keras.layers.Dense(neurons_quantity, activation='relu',
-                                         # activity_regularizer=l2(factor),
                                          kernel_regularizer=l2(factor),
                                          bias_regularizer=l2(factor),
                                          kernel_initializer=tf.keras.initializers.he_normal()))
@@ -98,12 +97,9 @@ class NNChoosingBetsManager(NeuralNetworkManager):
                                           NoBetEarlyStopping(patience=75),
                                           ModelCheckpoint(self.get_path_for_saving_weights(), save_best_only=True, save_weights_only=True,
                                                           monitor='val_profit', mode='max', verbose=1 if verbose is True else 0)]
-                                      # callbacks=[TensorBoard(write_grads=True, histogram_freq=1, log_dir='.\\tf_logs', write_graph=True)]
-                                      # callbacks=[WeightChangeMonitor()]
                                       )
 
         self.model.load_weights(self.get_path_for_saving_weights())
-        # save_model(self.model, self.get_path_for_saving_model())
 
     def hyper_tune_model(self):
         tuner = CustomBayesianSearch(self.create_model,
@@ -122,22 +118,3 @@ class NNChoosingBetsManager(NeuralNetworkManager):
         self.print_summary_after_tuning(tuner, 10, f'./hypertuning/{self.__class__.__name__}_test3')
 
         return tuner
-
-    # def evaluate_model(self, should_plot=True, should_print_train=True, hyperparams=None):
-    #     if should_print_train:
-    #         print("Treningowy zbior: ")
-    #         pprint.pprint(self.model.evaluate(self.x_train, self.y_train, verbose=0, batch_size=16, return_dict=True), width=1)
-    #         eval_model_after_learning(self.y_train[:, 0:4], self.model.predict(self.x_train), self.y_train[:, 4:7])
-    #
-    #     print("Walidacyjny zbior: ")
-    #     pprint.pprint(self.model.evaluate(self.x_val, self.y_val, verbose=0, batch_size=16, return_dict=True), width=1)
-    #     eval_model_after_learning(self.y_val[:, 0:4], self.model.predict(self.x_val), self.y_val[:, 4:7])
-    #
-    #     if self.x_test is not None:
-    #         print("Testowy zbior: ")
-    #         pprint.pprint(self.model.evaluate(self.x_test, self.y_test, verbose=0, batch_size=16, return_dict=True), width=1)
-    #         eval_model_after_learning(self.y_test[:, 0:4], self.model.predict(self.x_test), self.y_test[:, 4:7])
-    #
-    #     if should_plot:
-    #         plot_metric(self.history, 'loss')
-    #         plot_metric(self.history, 'profit')

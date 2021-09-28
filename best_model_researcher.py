@@ -12,7 +12,6 @@ class BestModelResearcher:
     def __init__(self, nn_model, raw_test_set: pd.DataFrame, ready_test_set):
         self.nn_model = nn_model
         self.raw_test_set = raw_test_set
-        # self.database_info
         self.ready_test_dataset = ready_test_set
 
     def simple_evaluation(self, testing_set, row_name):
@@ -48,12 +47,6 @@ class BestModelResearcher:
         received_stats = pd.DataFrame()
         for league_denotation, matches_for_league in matches_and_leagues.groupby(['country', 'division']):
             data_for_league = self.raw_test_set.loc[self.raw_test_set['match_id'].isin(matches_for_league['id'])]
-            # returned_metrics = self.simple_evaluation(get_dataset_ready_to_learn(data_for_league, DatasetSplit.TEST))
-            # metrics_to_show = {'profit': 0, 'precision': 0, 'accumulated_profit': 0, 'how_many_bets': 0, 'count': matches_for_league.count()}
-            # for index, metric_name in enumerate(self.nn_model.metrics_names):
-            #     if metric_name in metrics_to_show:
-            #         metrics_to_show[metric_name] = returned_metrics[index]
-            # metric_series = pd.Series(metrics_to_show, name=league_denotation[0] + str(league_denotation[1]))
             received_stats = received_stats.append(self.simple_evaluation(get_dataset_ready_to_learn(data_for_league, DatasetSplit.TEST),
                                                                           league_denotation[0] + str(league_denotation[1])))
         received_stats = received_stats.append(self.get_total_dataset_results())
@@ -104,8 +97,8 @@ class BestModelResearcher:
 
     def perform_full_research(self):
         self.test_profit_for_results()
-        # self.test_profit_for_leagues()
-        # self.test_profit_for_years()
-        # self.test_profit_for_bookmaker_margin()
-        # self.get_profit_chronologically()
+        self.test_profit_for_leagues()
+        self.test_profit_for_years()
+        self.test_profit_for_bookmaker_margin()
+        self.get_profit_chronologically()
 

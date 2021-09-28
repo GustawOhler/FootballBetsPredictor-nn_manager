@@ -77,14 +77,11 @@ class NeuralNetworkManager(ABC):
             file_path = f'./hypertuning/{self.__class__.__name__}/summary.txt'
         with open(file_path, 'w') as summary_file:
             sys.stdout = summary_file
-            # best_hyparam = tuner.get_best_hyperparameters(how_much_models)
             best_trials = tuner.oracle.get_best_trials(how_much_models)
             for i, trial in enumerate(best_trials):
-                # self.model = model
                 print(f"Model {i + 1}:")
                 pprint.pprint(trial.hyperparameters.values, width=1)
                 print(f"Average score: {trial.score}")
-                # self.evaluate_model(False, False, best_hyparam[i].values)
                 print()
             sys.stdout = original_stdout
 
@@ -104,7 +101,6 @@ class NeuralNetworkManager(ABC):
 
         if self.x_test is not None:
             print("Testowy zbior: ")
-            # pprint.pprint(self.model.evaluate(self.x_test, self.y_test, verbose=0, batch_size=16, return_dict=True), width=1)
             eval_model_after_learning_within_threshold(self.y_test[:, 0:3], self.model.predict(self.x_test), self.y_test[:, 4:7],
                                                        threshold)
 
@@ -113,7 +109,6 @@ class NeuralNetworkManager(ABC):
             plot_metric(self.history, 'categorical_acc_with_bets')
             plot_metric(self.history, 'profit')
 
-#TODO: sprawdzić i dokończyć
     def fine_tune(self, X, y):
         fine_tuning_learning_rate = self.best_params["learning_rate"] * 10e-2
         opt = keras.optimizers.Adam(learning_rate=fine_tuning_learning_rate)

@@ -24,13 +24,11 @@ def plot_metric(history, metric):
     plt.legend(["train_" + metric, 'val_' + metric])
     if metric == 'loss':
         concated_metrics = np.concatenate((np.asarray(train_metrics), np.asarray(val_metrics)))
-        # concated_metrics = concated_metrics[concated_metrics < 30]
         avg = np.average(concated_metrics)
         std_dev = math.sqrt(np.sum(concated_metrics * concated_metrics) / len(concated_metrics) - avg ** 2)
         start = avg - 3 * std_dev
         end = avg + 2 * std_dev
         plt.ylim([start, end])
-        # plt.ylim([0.85, 1.15])
     if metric == 'profit':
         plt.axhline(y=0, color='r')
     plt.show()
@@ -88,7 +86,6 @@ def show_winnings(predicted_classes, actual_classes, odds):
     winnings = 0.0
     for i in range(predicted_classes.shape[0]):
         # Jesli siec zdecydowala sie nie obstawiac meczu
-        # todo: czytelniej
         if predicted_classes[i] == Categories.NO_BET.value:
             continue
         elif predicted_classes[i] == actual_classes[i]:
@@ -100,7 +97,7 @@ def show_winnings(predicted_classes, actual_classes, odds):
 
 
 def show_winnings_for_classes(predicted_classes, actual_classes, odds):
-    for j in Categories:
+    for idx, j in enumerate(Categories):
         winnings = 0.0
         for i in range(predicted_classes.shape[0]):
             if predicted_classes[i] != j.value:
@@ -111,7 +108,7 @@ def show_winnings_for_classes(predicted_classes, actual_classes, odds):
                 winnings = winnings + odds[i][actual_classes[i]] - 1.0
             else:
                 winnings = winnings - 1.0
-        print("Bilans wygranych: " + str("{:.2f}".format(winnings)) + " dla klasy " + str(j))
+        print("Bilans wygranych: " + str("{:.2f}".format(winnings)) + " dla klasy " + results_to_description_dict[idx])
 
 
 # sprawdzanie wygranych dla obstawiania zakladow z najwiekszym prawdopodobienstwem (i roznica w podanym progu)
@@ -231,8 +228,6 @@ def eval_model_after_learning(y_true, y_pred, odds):
 def eval_model_after_learning_within_threshold(y_true, y_pred, odds, threshold):
     y_pred_classes = y_pred.argmax(axis=-1)
     y_true_classes = y_true.argmax(axis=-1)
-    # show_winnings_within_threshold_only_highest_prob(y_pred, y_true_classes, odds)
-    # show_accuracy_within_threshold(y_pred, y_true_classes, odds)
     show_winnings_within_threshold_every_bet(y_pred, y_true_classes, odds, threshold)
     show_accuracy_within_threshold_every_bet(y_pred, y_true_classes, odds, threshold)
 
